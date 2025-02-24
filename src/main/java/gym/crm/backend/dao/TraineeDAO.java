@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 @Repository
@@ -18,27 +19,28 @@ public class TraineeDAO {
     }
 
     public void saveTrainee(Trainee trainee) {
-        logger.info("Creating a new trainee: " + trainee.getFirstName() + trainee.getLastName() + " in TraineeDAO.");
+        logger.log(Level.INFO, "Creating a new trainee: {0} {1}", new Object[]{trainee.getFirstName(), trainee.getLastName()});
         storage.save("Trainee", trainee.getTraineeId(), trainee);
     }
 
     public Trainee findTrainee(long id) {
-        logger.info("Finding trainee with id: " + id + " in TraineeDAO.");
+        logger.log(Level.INFO, "Finding trainee with id: {0}", id);
         return (Trainee) storage.find("Trainee", id);
     }
 
     public void deleteTrainee(long id) {
-        logger.info("Deleting trainee with id: " + id + " in TraineeDAO.");
+        logger.log(Level.INFO, "Deleting trainee with id: {0}", id);
         storage.delete("Trainee", id);
+
     }
 
     public void updateTrainee(Trainee trainee) {
-        logger.info("Updating trainee with id: " + trainee.getTraineeId() + " in TraineeDAO.");
+        logger.log(Level.INFO, "Updating trainee with id: {0}", trainee.getTraineeId());
         storage.update("Trainee", trainee.getTraineeId(), trainee);
     }
 
     public Collection<Trainee> findAllTrainees() {
-        logger.info("Finding all trainees" + " in TraineeDAO.");
+        logger.log(Level.INFO, "Finding all trainees");
         return (Collection<Trainee>)(Collection<?>) storage.findAll("Trainee");
     }
 }

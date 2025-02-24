@@ -46,8 +46,7 @@ class TrainerServiceTest {
 
     @Test
     void findTrainerReturnsTrainer() {
-        Trainer trainer = new Trainer("Bob", "Brown", "Yoga");
-        trainer.setTrainerId(3L);
+        Trainer trainer = new Trainer(3L, "Bob", "Brown", "Yoga");
 
         when(trainerDAO.findTrainer(3L)).thenReturn(trainer);
 
@@ -58,8 +57,7 @@ class TrainerServiceTest {
 
     @Test
     void deleteTrainerRemovesTrainer() {
-        Trainer trainer = new Trainer("Charlie", "Davis", "Cardio");
-        trainer.setTrainerId(4L);
+        Trainer trainer = new Trainer(4L, "Charlie", "Davis", "Cardio");
 
         when(trainerDAO.findTrainer(4L)).thenReturn(trainer);
 
@@ -70,8 +68,7 @@ class TrainerServiceTest {
 
     @Test
     void updateTrainerUpdatesExistingTrainer() {
-        Trainer trainer = new Trainer("David", "Evans", "Pilates");
-        trainer.setTrainerId(5L);
+        Trainer trainer = new Trainer(5L, "David", "Evans", "Pilates");
 
         when(trainerDAO.findTrainer(5)).thenReturn(trainer);
 

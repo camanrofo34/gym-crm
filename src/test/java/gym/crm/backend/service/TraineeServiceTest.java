@@ -45,8 +45,7 @@ class TraineeServiceTest {
 
     @Test
     void findTraineeReturnsTrainee() {
-        Trainee trainee = new Trainee("Bob", "Brown", "02/02/1992", "Street 3");
-        trainee.setTraineeId(3L);
+        Trainee trainee = new Trainee(3L, "Bob", "Brown", "02/02/1992", "Street 3");
 
         when(traineeDAO.findTrainee(3L)).thenReturn(trainee);
 
@@ -57,8 +56,7 @@ class TraineeServiceTest {
 
     @Test
     void deleteTraineeRemovesTrainee() {
-        Trainee trainee = new Trainee("Charlie", "Davis", "03/03/1993", "Street 4");
-        trainee.setTraineeId(4L);
+        Trainee trainee = new Trainee(4L, "Charlie", "Davis", "03/03/1993", "Street 4");
 
         when(traineeDAO.findTrainee(4L)).thenReturn(trainee);
 
@@ -69,8 +67,7 @@ class TraineeServiceTest {
 
     @Test
     void updateTraineeUpdatesExistingTrainee() {
-        Trainee trainee = new Trainee("David", "Evans", "04/04/1994", "Street 5");
-        trainee.setTraineeId(5L);
+        Trainee trainee = new Trainee(5L, "David", "Evans", "04/04/1994", "Street 5");
 
         when(traineeDAO.findTrainee(5L)).thenReturn(trainee);
 

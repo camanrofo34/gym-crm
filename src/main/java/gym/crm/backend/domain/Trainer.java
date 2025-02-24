@@ -5,16 +5,21 @@ import lombok.*;
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
-@Setter
 @ToString
 public class Trainer extends User{
     private Long trainerId;
+
+    @Setter
     private TrainingType specialization;
 
     public Trainer(String firstName, String lastName, String specialization) {
         super(firstName, lastName, true);
-        TrainingType trainingType = new TrainingType();
-        trainingType.setTrainingTypeName(specialization);
-        this.specialization = trainingType;
+        this.specialization = new TrainingType(specialization);
+    }
+
+    public Trainer(long trainerId, String firstName, String lastName, String specialization){
+        super(firstName, lastName, true);
+        this.trainerId = trainerId;
+        this.specialization = new TrainingType(specialization);
     }
 }

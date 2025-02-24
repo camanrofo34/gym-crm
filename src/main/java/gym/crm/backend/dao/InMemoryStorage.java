@@ -32,6 +32,69 @@ public class InMemoryStorage{
         storage.put("Training", new HashMap<>());
     }
 
+    @PostConstruct
+    public void init() {
+        logger.log(Level.INFO, "Initializing storage from file: {0}", dataFilePath);
+        File file = new File(dataFilePath);
+
+        try (FileReader fr = new FileReader(file);
+             BufferedReader reader = new BufferedReader(fr)) {
+
+            storage.put("Trainer", new HashMap<>());
+            storage.put("Trainee", new HashMap<>());
+            storage.put("Training", new HashMap<>());
+            storage.put("TrainingType", new HashMap<>());
+
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] parts = line.split(",");
+
+                if (parts.length == 0) continue; // Evita procesar líneas vacías
+
+                String type = parts[0];
+                long id = Long.parseLong(parts[1]);
+
+                switch (type) {
+                    case "Trainer" -> {
+                        // Trainer,ID,FirstName,LastName,Specialization,Username,Password
+                        Trainer trainer = new Trainer(id, new TrainingType(parts[4]));
+                        trainer.setFirstName(parts[2]);
+                        trainer.setLastName(parts[3]);
+                        trainer.setUsername(parts[5]);
+                        trainer.setPassword(parts[6]);
+                        storage.get("Trainer").put(id, trainer);
+                    }
+                    case "Trainee" -> {
+                        // Trainee,ID,FirstName,LastName,DateOfBirth,Address,Username,Password
+                        Trainee trainee = new Trainee(id, parts[4], parts[5]);
+                        trainee.setFirstName(parts[2]);
+                        trainee.setLastName(parts[3]);
+                        trainee.setUsername(parts[6]);
+                        trainee.setPassword(parts[7]);
+                        storage.get("Trainee").put(id, trainee);
+                    }
+                    case "Training" -> {
+                        // Training,ID,TraineeID,TrainerID,TrainingName,TrainingDate,TrainingDuration
+                        long traineeId = Long.parseLong(parts[2]);
+                        long trainerId = Long.parseLong(parts[3]);
+                        Training training = new Training(id, traineeId, trainerId, parts[4], new TrainingType(parts[5]),  parts[6], Double.parseDouble(parts[7]));
+                        storage.get("Training").put(id, training);
+                    }
+                    case "TrainingType" -> {
+                        // TrainingType,ID,TrainingTypeName
+                        TrainingType trainingType = new TrainingType(parts[2]);
+                        storage.get("TrainingType").put(id, trainingType);
+                    }
+                    default -> logger.log(Level.WARNING, "Unknown record type: {0}", type);
+                }
+            }
+            logger.log(Level.INFO, "Storage successfully initialized from file: {0}", dataFilePath);
+
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error initializing storage from file: {0}", e.getMessage());
+        }
+    }
+
     public void save(String entityName, Long id, Object entity) {
         Map<Long, Object> entities = storage.get(entityName);
         entities.put(id, entity);
@@ -53,52 +116,4 @@ public class InMemoryStorage{
         storage.get(entityName).put(id, entity);
     }
 
-    @PostConstruct
-    public void init() {
-        logger.log(Level.INFO, "Initializing storage from file: {0}", dataFilePath);
-        File file= new File(dataFilePath);
-        try (FileReader fr = new FileReader(file);
-             BufferedReader reader = new BufferedReader(fr)) {
-
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String[] parts = line.split(",");
-                String type = parts[0];
-                long id = Long.parseLong(parts[1]);
-
-                switch (type) {
-                    case "Trainer" -> {
-                        Trainer trainer = new Trainer();
-                        trainer.setTrainerId(id);
-                        trainer.setFirstName(parts[2]);
-                        trainer.setLastName(parts[3]);
-                        TrainingType trainingType = new TrainingType();
-                        trainingType.setTrainingTypeName(parts[4]);
-                        trainer.setSpecialization(trainingType);
-                        storage.get("Trainer").put(id, trainer);
-                    }
-                    case "Trainee" -> {
-                        Trainee trainee = new Trainee();
-                        trainee.setTraineeId(id);
-                        trainee.setFirstName(parts[2]);
-                        trainee.setLastName(parts[3]);
-                        trainee.setDateOfBirth(parts[4]);
-                        trainee.setAddress(parts[5]);
-                        storage.get("Trainee").put(id, trainee);
-                    }
-                    case "Training" -> {
-                        Training training = new Training();
-                        training.setTrainingId(id);
-                        training.setTrainingName(parts[2]);
-                        training.setTrainingDate(parts[3]);
-                        training.setTrainingDuration(Double.parseDouble(parts[4]));
-                        storage.get("Training").put(id, training);
-                    }
-                }
-            }
-            logger.log(Level.INFO, "Storage initialized from file: {0}", dataFilePath);
-        } catch (Exception e) {
-            logger.log(Level.SEVERE, "Error initializing storage from file: {0}", e.getMessage());
-        }
-    }
 }

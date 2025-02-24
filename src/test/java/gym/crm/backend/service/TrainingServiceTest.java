@@ -49,8 +49,6 @@ class TrainingServiceTest {
                 new TrainingType(1, "Strengh"), "20/10/2000",
                 30.0);
 
-        training.setTrainingId(1);
-
         when(trainingDAO.findTraining(1)).thenReturn(training);
 
         Training foundTraining = trainingService.findTraining(1);

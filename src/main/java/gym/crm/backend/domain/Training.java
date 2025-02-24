@@ -5,14 +5,21 @@ import lombok.*;
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
-@Setter
 @ToString
 public class Training {
     private long trainingId;
     private long traineeId;
     private long trainerId;
+
+    @Setter
     private String trainingName;
+
+    @Setter
     private TrainingType trainingType;
+
+    @Setter
     private String trainingDate;
+
+    @Setter
     private double trainingDuration;
 }

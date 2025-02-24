@@ -5,9 +5,14 @@ import lombok.*;
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
-@Setter
 @ToString
 public class TrainingType {
     private long trainingTypeId;
+
+    @Setter
     private String TrainingTypeName;
+
+    public TrainingType(String specialization) {
+        this.TrainingTypeName = specialization;
+    }
 }
