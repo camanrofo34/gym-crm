@@ -1,51 +1,72 @@
 package gym.crm.backend.service;
 
-import gym.crm.backend.dao.TrainerDAO;
+
 import gym.crm.backend.domain.Trainer;
+import gym.crm.backend.domain.Training;
+import gym.crm.backend.repository.TrainerRepository;
+import gym.crm.backend.repository.TrainingRepository;
 import gym.crm.backend.util.UserUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.Collection;
+import java.util.Date;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.Optional;
 
 @Service
 public class TrainerService {
+    private final TrainerRepository trainerRepository;
+    private final TrainingRepository trainingRepository;
 
     @Autowired
-    private TrainerDAO trainerDAO;
+    public TrainerService(TrainerRepository trainerRepository, TrainingRepository trainingRepository) {
+        this.trainerRepository = trainerRepository;
+        this.trainingRepository = trainingRepository;
+    }
 
-    private static final Logger logger = Logger.getLogger(TrainerService.class.getName());
-
-    public void saveTrainer(Trainer trainer) {
-        logger.log(Level.INFO, "Creating a new trainer: {0} {1}", new Object[]{trainer.getFirstName(), trainer.getLastName()});
-        List<String> existingUsernames = trainerDAO.findAllTrainers().stream().map(Trainer::getUsername).toList();
-        String username = UserUtil.generateUsername(trainer.getFirstName(), trainer.getLastName(), existingUsernames);
-        trainer.setUsername(username);
+    public Trainer createTrainer(Trainer trainer) {
+        List<String> usernames = trainerRepository.findAll().stream().map(t -> t.getUser().getUsername()).toList();
+        String username = UserUtil.generateUsername(trainer.getUser().getFirstName(), trainer.getUser().getLastName(), usernames);
+        trainer.getUser().setUsername(username);
         String password = UserUtil.generatePassword();
-        trainer.setPassword(password);
-        trainerDAO.saveTrainer(trainer);
+        trainer.getUser().setPassword(password);
+        return trainerRepository.save(trainer);
     }
 
-    public Trainer findTrainer(long id) {
-        logger.log(Level.INFO, "Finding trainer with id: {0}", id);
-        return trainerDAO.findTrainer(id);
+    public Optional<Trainer> getTrainerByUsername(String username) {
+        return trainerRepository.findByUserUsername(username);
     }
 
-    public void updateTrainer(Trainer trainer) {
-        logger.log(Level.INFO, "Updating trainer with id: {0}", trainer.getTrainerId());
-        trainerDAO.updateTrainer(trainer);
+    public boolean matchTrainerUsernameAndPassword(String username, String password) {
+        Optional<Trainer> trainer = trainerRepository.findByUserUsername(username);
+        return trainer.map(t -> t.getUser().getPassword().equals(password)).orElse(false);
     }
 
-    public void deleteTrainer(long id) {
-        logger.log(Level.INFO, "Deleting trainer with id: {0}", id);
-        trainerDAO.deleteTrainer(id);
+    public void changePassword(String username, String newPassword) {
+        Optional<Trainer> trainer = trainerRepository.findByUserUsername(username);
+        trainer.ifPresent(t -> {
+            t.getUser().setPassword(newPassword);
+            trainerRepository.save(t);
+        });
     }
 
-    public Collection<Trainer> findAllTrainers() {
-        logger.log(Level.INFO, "Finding all trainers");
-        return trainerDAO.findAllTrainers();
+    public Trainer updateTrainerProfile(Trainer trainer) {
+        return trainerRepository.save(trainer);
+    }
+
+    public void activateDeactivateTrainer(String username, boolean status) {
+        Optional<Trainer> trainer = trainerRepository.findByUserUsername(username);
+        trainer.ifPresent(t -> {
+            t.getUser().setIsActive(status);
+            trainerRepository.save(t);
+        });
+    }
+
+    public List<Training> getTrainerTrainings(String username, Date fromDate, Date toDate, String traineeName) {
+        return trainingRepository.findTrainerTrainings(username, fromDate, toDate, traineeName);
+    }
+
+    public List<Trainer> getTrainersNotInTrainersTraineeListByTraineeUserUsername(String traineeUsername) {
+        return trainerRepository.findTrainersNotInTrainersTraineeListByTraineeUserUsername(traineeUsername);
     }
 }

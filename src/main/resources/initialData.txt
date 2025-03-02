@@ -1,6 +1,0 @@
-Trainer,1,John,Doe,Strength Training,John.Doe,dF3vB7xZqL
-Trainer,2,Jane,Smith,Cardio,Jane.Smith,Xy9TpLmAq2
-Trainee,101,Mike,Johnson,1995-06-15,123 Main St,Mike.Johnson,aB7kLmXzQw
-Trainee,102,Sarah,Wilson,1998-09-22,456 Elm St,Sarah.Wilson,PqLmXy9TzA
-Training,1001,101,1,Weight,Weight Lifting,2025-03-01,1.5
-Training,1002,102,2,Run,Running,2025-03-02,0.75

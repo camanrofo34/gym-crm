@@ -1,18 +1,19 @@
 package gym.crm.backend.domain;
 
+import jakarta.persistence.*;
 import lombok.*;
 
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
 @ToString
+@Entity
+@Table(name = "training_type")
 public class TrainingType {
-    private long trainingTypeId;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    @Setter
-    private String TrainingTypeName;
-
-    public TrainingType(String specialization) {
-        this.TrainingTypeName = specialization;
-    }
+    @Column(nullable = false, unique = true, updatable = false)
+    private String trainingTypeName;
 }
