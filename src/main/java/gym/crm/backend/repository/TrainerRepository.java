@@ -2,6 +2,7 @@ package gym.crm.backend.repository;
 
 import gym.crm.backend.domain.Trainer;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
@@ -11,7 +12,8 @@ public interface TrainerRepository extends JpaRepository<Trainer, Long> {
 
     Optional<Trainer> findByUserUsername(String username);
 
-    @Query("SELECT t FROM Trainer t WHERE t NOT IN " +
-            "(SELECT tr FROM Trainer tr JOIN tr.trainees trt WHERE trt.user.username = :traineeUsername)")
-    List<Trainer> findTrainersNotInTrainersTraineeListByTraineeUserUsername(String traineeUsername);
+//    @Query("update Trainer t set t.user.password = :password where t.user.username = :userUsername")
+//    @Modifying
+//    void updateUserPasswordByUser_Username(String userUsername, String password);
+
 }

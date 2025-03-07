@@ -9,7 +9,7 @@ import lombok.*;
 @ToString
 @Setter
 @Entity
-@Table(name = "users")
+@Table(name = "user")
 public class User {
 
     @Id
@@ -31,4 +31,9 @@ public class User {
     @Column(nullable = false)
     private Boolean isActive = true;
 
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
+    private Trainer trainer;
+
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
+    private Trainee trainee;
 }

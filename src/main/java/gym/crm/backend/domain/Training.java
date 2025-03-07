@@ -8,10 +8,11 @@ import java.util.Date;
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
-@ToString
+@Setter
 @Entity
 @Table(name = "training")
 public class Training {
+
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -20,22 +21,23 @@ public class Training {
     @Column(nullable = false)
     private String trainingName;
 
-    @Temporal(TemporalType.TIMESTAMP)
+    @Temporal(TemporalType.DATE)
     @Column(nullable = false)
     private Date trainingDate;
 
     @Column(nullable = false)
     private Double trainingDuration;
 
-    @ManyToOne(optional = false)
-    @JoinColumn(name = "traineeId", referencedColumnName = "id")
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "trainee_id")
     private Trainee trainee;
 
-    @ManyToOne(optional = false)
-    @JoinColumn(name = "trainerId", referencedColumnName = "id")
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "trainer_id")
     private Trainer trainer;
 
-    @ManyToOne(optional = false)
-    @JoinColumn(name = "trainingTypeId", referencedColumnName = "id")
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "training_type_id")
     private TrainingType trainingType;
+
 }
