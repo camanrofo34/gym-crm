@@ -80,6 +80,4 @@
 
 <hr/>
 
-<p>Feel free to reach out if you'd like this README customized with usage examples, API documentation, or additional sections.</p>
-
 
