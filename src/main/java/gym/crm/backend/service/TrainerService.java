@@ -15,12 +15,14 @@ import java.util.logging.Logger;
 @Service
 public class TrainerService {
     private final TrainerRepository trainerRepository;
+    private final UserUtil userUtil;
 
     private final Logger log = Logger.getLogger(TrainerService.class.getName());
 
     @Autowired
-    public TrainerService(TrainerRepository trainerRepository) {
+    public TrainerService(TrainerRepository trainerRepository, UserUtil userUtil) {
         this.trainerRepository = trainerRepository;
+        this.userUtil = userUtil;
     }
 
     public Trainer createTrainer(Trainer trainer) {
@@ -28,10 +30,18 @@ public class TrainerService {
             log.log(Level.WARNING, "Trainer data validation failure");
             return null;
         }
-        List<String> usernames = trainerRepository.findAll().stream().map(t -> t.getUser().getUsername()).toList();
-        String username = UserUtil.generateUsername(trainer.getUser().getFirstName(), trainer.getUser().getLastName(), usernames);
+        List<String> usernames = getTraineeUsernames(trainerRepository.findAll());
+        String username = userUtil.generateUsername(trainer.getUser().getFirstName(), trainer.getUser().getLastName(), usernames);
+        if (username == null) {
+            log.severe("Username generation failed!");
+            throw new RuntimeException("Failed to generate username");
+        }
         trainer.getUser().setUsername(username);
-        String password = UserUtil.generatePassword();
+        String password = userUtil.generatePassword();
+        if (password == null) {
+            log.severe("Password generation failed!");
+            throw new RuntimeException("Failed to generate password");
+        }
         trainer.getUser().setPassword(password);
         log.log(Level.INFO, "Trainer created with username: {0}", username);
         return trainerRepository.save(trainer);
@@ -60,10 +70,10 @@ public class TrainerService {
     public void updateTrainerProfile(Trainer trainer) {
         if (validateTrainer(trainer)) {
             log.log(Level.WARNING, "Trainer data validation failure");
-            return;
+        }else{
+            log.log(Level.INFO, "Updating trainer profile");
+            trainerRepository.save(trainer);
         }
-        log.log(Level.INFO, "Updating trainer profile");
-        trainerRepository.save(trainer);
     }
 
     public void activateDeactivateTrainer(String username) {
@@ -76,7 +86,18 @@ public class TrainerService {
     }
 
     public boolean validateTrainer(Trainer trainer) {
-        log.log(Level.INFO, "Validating trainer");
-        return trainer.getUser().getFirstName() == null || trainer.getUser().getLastName() == null;
+        log.log(Level.INFO, "Checking data validation");
+        try {
+            return trainer.getUser().getFirstName() == null || trainer.getUser().getLastName() == null;
+        } catch (NullPointerException e) {
+            return true;
+        }
+    }
+
+    private List<String> getTraineeUsernames(List<Trainer> trainers) {
+        if (trainers == null) {
+            return List.of();
+        }
+        return trainers.stream().map(t -> t.getUser().getUsername()).toList();
     }
 }

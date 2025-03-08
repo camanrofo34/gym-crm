@@ -132,9 +132,9 @@ public class Facade {
         return null;
     }
 
-    public boolean updateTrainersTraineeList(String traineeUsername, String traineePassword, Long trainerId) {
+    public boolean updateTrainersTraineeList(String traineeUsername, String traineePassword, String trainerUsername) {
         if (matchTraineeUsernameAndPassword(traineeUsername, traineePassword)) {
-            return traineeService.updateTrainersTraineeList(traineeUsername, trainerId);
+            return traineeService.updateTrainersTraineeList(traineeUsername, trainerUsername);
         }
         return false;
     }

@@ -12,8 +12,4 @@ public interface TrainerRepository extends JpaRepository<Trainer, Long> {
 
     Optional<Trainer> findByUserUsername(String username);
 
-//    @Query("update Trainer t set t.user.password = :password where t.user.username = :userUsername")
-//    @Modifying
-//    void updateUserPasswordByUser_Username(String userUsername, String password);
-
 }

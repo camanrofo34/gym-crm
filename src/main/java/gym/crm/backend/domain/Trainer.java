@@ -13,7 +13,6 @@ import java.util.Set;
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
-@Setter
 @Table(name = "trainer")
 public class Trainer {
 
@@ -23,13 +22,16 @@ public class Trainer {
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false, unique = true)
+    @Setter
     private User user;
 
     @OneToMany(mappedBy = "trainer", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @Setter
     private List<Training> trainings;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "specialization", nullable = false)
+    @Setter
     private TrainingType specialization;
 
     @ManyToMany(fetch = FetchType.LAZY)
@@ -38,5 +40,6 @@ public class Trainer {
             joinColumns = @JoinColumn(name = "trainer_id"),
             inverseJoinColumns = @JoinColumn(name = "trainee_id")
     )
+    @Setter
     private Set<Trainee> trainees;
 }

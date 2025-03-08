@@ -8,7 +8,6 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
-@ToString
 @Entity
 @Table(name = "training_type")
 public class TrainingType {
@@ -19,11 +18,14 @@ public class TrainingType {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, unique = true, updatable = false)
+    @Setter
     private TrainingTypes trainingTypeName;
 
     @OneToMany(mappedBy = "trainingType", fetch = FetchType.LAZY)
+    @Setter
     private List<Training> trainings;
 
     @OneToMany(mappedBy = "specialization", fetch = FetchType.LAZY)
+    @Setter
     private List<Trainer> trainers;
 }

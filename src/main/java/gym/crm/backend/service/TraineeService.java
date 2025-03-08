@@ -9,8 +9,10 @@ import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -19,13 +21,15 @@ public class TraineeService {
 
     private final TraineeRepository traineeRepository;
     private final TrainerRepository trainerRepository;
+    private final UserUtil userUtil;
 
     private final Logger log = Logger.getLogger(TraineeService.class.getName());
 
     @Autowired
-    public TraineeService(TraineeRepository traineeRepository, TrainerRepository trainerRepository) {
+    public TraineeService(TraineeRepository traineeRepository, TrainerRepository trainerRepository, UserUtil userUtil) {
         this.traineeRepository = traineeRepository;
         this.trainerRepository = trainerRepository;
+        this.userUtil = userUtil;
     }
 
     public Trainee createTrainee(Trainee trainee) {
@@ -33,10 +37,18 @@ public class TraineeService {
             log.log(Level.WARNING, "Trainee data validation failure");
             return null;
         }
-        List<String> usernames = traineeRepository.findAll().stream().map(t -> t.getUser().getUsername()).toList();
-        String username = UserUtil.generateUsername(trainee.getUser().getFirstName(), trainee.getUser().getLastName(), usernames);
+        List<String> usernames = getTraineeUsernames(traineeRepository.findAll());
+        String username = userUtil.generateUsername(trainee.getUser().getFirstName(), trainee.getUser().getLastName(), usernames);
+        if (username == null) {
+            log.severe("Username generation failed!");
+            throw new RuntimeException("Failed to generate username");
+        }
         trainee.getUser().setUsername(username);
-        String password = UserUtil.generatePassword();
+        String password = userUtil.generatePassword();
+        if (password == null) {
+            log.severe("Password generation failed!");
+            throw new RuntimeException("Failed to generate password");
+        }
         trainee.getUser().setPassword(password);
         log.log(Level.INFO, "Trainee created with username: {0}", username);
         return traineeRepository.save(trainee);
@@ -66,8 +78,9 @@ public class TraineeService {
         if (dataValidation(trainee)) {
             log.log(Level.INFO, "Updating trainee profile");
             traineeRepository.save(trainee);
+        }else {
+            log.log(Level.WARNING, "Trainee data validation failure");
         }
-        log.log(Level.WARNING, "Trainee data validation failure");
     }
 
     public void activateDeactivateTrainee(String username) {
@@ -83,10 +96,11 @@ public class TraineeService {
     public void deleteTrainee(String username) {
         Trainee trainee = traineeRepository.findByUserUsername(username)
                 .orElseThrow(() -> new RuntimeException("Trainee not found with username: " + username));
-        for (Trainer trainer : trainee.getTrainers()) {
-            trainer.getTrainees().remove(trainee);
+        if (trainee.getTrainers() != null) {
+            for (Trainer trainer : trainee.getTrainers()) {
+                trainer.getTrainees().remove(trainee);
+            }
         }
-        trainee.getTrainers().clear();
         log.log(Level.INFO, "Trainee deleted by username: {0}", username);
         traineeRepository.delete(trainee);
     }
@@ -96,27 +110,39 @@ public class TraineeService {
         return traineeRepository.findTrainersNotInTrainersTraineeListByTraineeUserUsername(traineeUsername);
     }
 
-    public boolean updateTrainersTraineeList(String username, Long trainerId) {
+    public boolean updateTrainersTraineeList(String username, String trainerUsername) {
         Trainee trainee = traineeRepository.findByUserUsername(username).orElse(null);
-        Trainer trainer = trainerRepository.findById(trainerId).orElse(null);
-        if (trainee.getTrainers() == null || trainee.getTrainers().contains(trainer)) {
-            log.log(Level.WARNING, "Trainee not found with username: {0}", username);
+        Trainer trainer = trainerRepository.findByUserUsername(trainerUsername).orElse(null);
+
+        if (trainee == null || trainer == null) {
             return false;
         }
-        trainee.getTrainers().add(trainer);
-        traineeRepository.save(trainee);
-        log.log(Level.INFO, "Updating Trainee's TrainersList by username: {0}", username);
-        return true;
+        if (trainee.getTrainers() == null) {
+            trainee.setTrainers(new HashSet<>());
+        }
+        if (!trainee.getTrainers().contains(trainer)) {
+            trainee.getTrainers().add(trainer);
+            traineeRepository.save(trainee);
+            log.log(Level.INFO, "Trainer {0} added to Trainee {1}", new Object[]{trainerUsername, username});
+            return true;
+        }
+        return false;
     }
 
-    public boolean dataValidation(Trainee trainee) {
+
+    private boolean dataValidation(Trainee trainee) {
         log.log(Level.INFO, "Checking data validation");
-        if (trainee.getAddress() == null) {
+        try {
+            return trainee.getUser().getFirstName() != null && trainee.getUser().getLastName() != null;
+        } catch (NullPointerException e) {
             return false;
         }
-        if (trainee.getUser().getFirstName() == null) {
-            return false;
+    }
+
+    private List<String> getTraineeUsernames(List<Trainee> trainees) {
+        if (trainees == null) {
+            return List.of();
         }
-        return trainee.getUser().getLastName() != null;
+        return trainees.stream().map(t -> t.getUser().getUsername()).toList();
     }
 }

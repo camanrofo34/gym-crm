@@ -3,6 +3,7 @@ package gym.crm.backend.service;
 import gym.crm.backend.domain.Trainer;
 import gym.crm.backend.domain.User;
 import gym.crm.backend.repository.TrainerRepository;
+import gym.crm.backend.util.UserUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -19,8 +20,12 @@ class TrainerServiceTest {
     @Mock
     private TrainerRepository trainerRepository;
 
+    @Mock
+    private UserUtil userUtil;
+
     @InjectMocks
     private TrainerService trainerService;
+
 
     @BeforeEach
     void setUp() {
@@ -36,6 +41,8 @@ class TrainerServiceTest {
         trainer.setUser(user);
 
         when(trainerRepository.save(any(Trainer.class))).thenReturn(trainer);
+        when(userUtil.generateUsername(anyString(), anyString(), anyList())).thenReturn("jane.doe");
+        when(userUtil.generatePassword()).thenReturn("password123");
 
         Trainer result = trainerService.createTrainer(trainer);
 
@@ -58,22 +65,22 @@ class TrainerServiceTest {
     void getTrainerByUsername_Success() {
         Trainer trainer = new Trainer();
         User user = new User();
-        user.setUsername("janedoe");
+        user.setUsername("jane.doe");
         trainer.setUser(user);
 
-        when(trainerRepository.findByUserUsername("janedoe")).thenReturn(Optional.of(trainer));
+        when(trainerRepository.findByUserUsername("jane.doe")).thenReturn(Optional.of(trainer));
 
-        Optional<Trainer> result = trainerService.getTrainerByUsername("janedoe");
+        Optional<Trainer> result = trainerService.getTrainerByUsername("jane.doe");
 
         assertTrue(result.isPresent());
-        assertEquals("janedoe", result.get().getUser().getUsername());
+        assertEquals("jane.doe", result.get().getUser().getUsername());
     }
 
     @Test
     void getTrainerByUsername_NotFound() {
-        when(trainerRepository.findByUserUsername("janedoe")).thenReturn(Optional.empty());
+        when(trainerRepository.findByUserUsername("jane.doe")).thenReturn(Optional.empty());
 
-        Optional<Trainer> result = trainerService.getTrainerByUsername("janedoe");
+        Optional<Trainer> result = trainerService.getTrainerByUsername("jane.doe");
 
         assertFalse(result.isPresent());
     }
@@ -82,22 +89,37 @@ class TrainerServiceTest {
     void matchTrainerUsernameAndPassword_Success() {
         Trainer trainer = new Trainer();
         User user = new User();
-        user.setUsername("janedoe");
+        user.setUsername("jane.doe");
         user.setPassword("password123");
         trainer.setUser(user);
 
-        when(trainerRepository.findByUserUsername("janedoe")).thenReturn(Optional.of(trainer));
+        when(trainerRepository.findByUserUsername("jane.doe")).thenReturn(Optional.of(trainer));
 
-        boolean result = trainerService.matchTrainerUsernameAndPassword("janedoe", "password123");
+        boolean result = trainerService.matchTrainerUsernameAndPassword("jane.doe", "password123");
 
         assertTrue(result);
     }
 
     @Test
-    void matchTrainerUsernameAndPassword_Failure() {
-        when(trainerRepository.findByUserUsername("janedoe")).thenReturn(Optional.empty());
+    void matchTrainerUsernameAndPassword_FailureByUsername() {
+        Trainer trainer = new Trainer();
+        User user = new User();
+        user.setUsername("jane.doe");
+        user.setPassword("password123");
+        trainer.setUser(user);
 
-        boolean result = trainerService.matchTrainerUsernameAndPassword("janedoe", "password123");
+        when(trainerRepository.findByUserUsername("jane.doe")).thenReturn(Optional.of(trainer));
+
+        boolean result = trainerService.matchTrainerUsernameAndPassword("jane.doe", "wrong");
+
+        assertFalse(result);
+    }
+
+    @Test
+    void matchTrainerUsernameAndPassword_FailureByPassword() {
+        when(trainerRepository.findByUserUsername("jane.doe")).thenReturn(Optional.empty());
+
+        boolean result = trainerService.matchTrainerUsernameAndPassword("jane.doe", "password123");
 
         assertFalse(result);
     }
@@ -106,12 +128,12 @@ class TrainerServiceTest {
     void changePassword_Success() {
         Trainer trainer = new Trainer();
         User user = new User();
-        user.setUsername("janedoe");
+        user.setUsername("jane.doe");
         trainer.setUser(user);
 
-        when(trainerRepository.findByUserUsername("janedoe")).thenReturn(Optional.of(trainer));
+        when(trainerRepository.findByUserUsername("jane.doe")).thenReturn(Optional.of(trainer));
 
-        trainerService.changePassword("janedoe", "newpassword");
+        trainerService.changePassword("jane.doe", "newpassword");
 
         assertEquals("newpassword", trainer.getUser().getPassword());
         verify(trainerRepository, times(1)).save(trainer);
@@ -119,9 +141,34 @@ class TrainerServiceTest {
 
     @Test
     void changePassword_TrainerNotFound() {
-        when(trainerRepository.findByUserUsername("janedoe")).thenReturn(Optional.empty());
+        when(trainerRepository.findByUserUsername("jane.doe")).thenReturn(Optional.empty());
 
-        trainerService.changePassword("janedoe", "newpassword");
+        trainerService.changePassword("jane.doe", "newpassword");
+
+        verify(trainerRepository, never()).save(any(Trainer.class));
+    }
+
+    @Test
+    void updateTrainerProfile_Success() {
+        Trainer trainer = new Trainer();
+        User user = new User();
+        user.setFirstName("Jane");
+        user.setLastName("Doe");
+        user.setUsername("jane.doe");
+        trainer.setUser(user);
+
+        when(trainerRepository.findByUserUsername("jane.doe")).thenReturn(Optional.of(trainer));
+
+        trainerService.updateTrainerProfile(trainer);
+
+        verify(trainerRepository, times(1)).save(trainer);
+    }
+
+    @Test
+    void updateTrainerProfile_Failure() {
+        Trainer trainer = new Trainer();
+
+        trainerService.updateTrainerProfile(trainer);
 
         verify(trainerRepository, never()).save(any(Trainer.class));
     }
@@ -130,13 +177,12 @@ class TrainerServiceTest {
     void activateDeactivateTrainer_Success() {
         Trainer trainer = new Trainer();
         User user = new User();
-        user.setUsername("janedoe");
-        user.setIsActive(true);
+        user.setUsername("jane.doe");
         trainer.setUser(user);
 
-        when(trainerRepository.findByUserUsername("janedoe")).thenReturn(Optional.of(trainer));
+        when(trainerRepository.findByUserUsername("jane.doe")).thenReturn(Optional.of(trainer));
 
-        trainerService.activateDeactivateTrainer("janedoe");
+        trainerService.activateDeactivateTrainer("jane.doe");
 
         assertFalse(trainer.getUser().getIsActive());
         verify(trainerRepository, times(1)).save(trainer);
