@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -32,19 +33,19 @@ public class TrainingService {
         return trainingRepository.findTraineeTrainings(username, fromDate, toDate, trainerName, trainingType);
     }
 
-    public Training createTraining(Training training) {
+    public Optional<Training> createTraining(Training training) {
         if (training.getTrainingName() == null) {
             log.log(Level.WARNING, "Training name is empty");
-            return null;
+            return Optional.empty();
         }
         if (training.getTrainingDate() == null) {
             log.log(Level.WARNING, "Training date is empty");
-            return null;
+            return Optional.empty();
         }
         if (training.getTrainingDuration() == null) {
             log.log(Level.WARNING, "Training duration is empty");
-            return null;
+            return Optional.empty();
         }
-        return trainingRepository.save(training);
+        return Optional.of(trainingRepository.save(training));
     }
 }

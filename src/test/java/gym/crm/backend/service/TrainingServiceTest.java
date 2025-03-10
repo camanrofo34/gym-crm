@@ -10,6 +10,7 @@ import org.mockito.MockitoAnnotations;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -78,10 +79,10 @@ class TrainingServiceTest {
 
         when(trainingRepository.save(any(Training.class))).thenReturn(training);
 
-        Training result = trainingService.createTraining(training);
+        Optional<Training> result = trainingService.createTraining(training);
 
         assertNotNull(result);
-        assertEquals("Training1", result.getTrainingName());
+        assertEquals("Training1", result.get().getTrainingName());
     }
 
     @Test
@@ -90,9 +91,9 @@ class TrainingServiceTest {
         training.setTrainingDate(new Date());
         training.setTrainingDuration(1.0);
 
-        Training result = trainingService.createTraining(training);
+        Optional<Training> result = trainingService.createTraining(training);
 
-        assertNull(result);
+        assertFalse(result.isPresent());
         verify(trainingRepository, never()).save(any(Training.class));
     }
 
@@ -102,9 +103,9 @@ class TrainingServiceTest {
         training.setTrainingName("Training1");
         training.setTrainingDuration(1.0);
 
-        Training result = trainingService.createTraining(training);
+        Optional<Training> result = trainingService.createTraining(training);
 
-        assertNull(result);
+        assertFalse(result.isPresent());
         verify(trainingRepository, never()).save(any(Training.class));
     }
 
@@ -114,9 +115,9 @@ class TrainingServiceTest {
         training.setTrainingName("Training1");
         training.setTrainingDate(new Date());
 
-        Training result = trainingService.createTraining(training);
+        Optional<Training> result = trainingService.createTraining(training);
 
-        assertNull(result);
+        assertFalse(result.isPresent());
         verify(trainingRepository, never()).save(any(Training.class));
     }
 }

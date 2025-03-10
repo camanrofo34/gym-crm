@@ -25,10 +25,10 @@ public class TrainerService {
         this.userUtil = userUtil;
     }
 
-    public Trainer createTrainer(Trainer trainer) {
+    public Optional<Trainer> createTrainer(Trainer trainer) {
         if (validateTrainer(trainer)) {
             log.log(Level.WARNING, "Trainer data validation failure");
-            return null;
+            return Optional.empty();
         }
         List<String> usernames = getTraineeUsernames(trainerRepository.findAll());
         String username = userUtil.generateUsername(trainer.getUser().getFirstName(), trainer.getUser().getLastName(), usernames);
@@ -44,7 +44,7 @@ public class TrainerService {
         }
         trainer.getUser().setPassword(password);
         log.log(Level.INFO, "Trainer created with username: {0}", username);
-        return trainerRepository.save(trainer);
+        return Optional.of(trainerRepository.save(trainer));
     }
 
     public Optional<Trainer> getTrainerByUsername(String username) {
@@ -95,7 +95,7 @@ public class TrainerService {
     }
 
     private List<String> getTraineeUsernames(List<Trainer> trainers) {
-        if (trainers == null) {
+        if (trainers.isEmpty()) {
             return List.of();
         }
         return trainers.stream().map(t -> t.getUser().getUsername()).toList();

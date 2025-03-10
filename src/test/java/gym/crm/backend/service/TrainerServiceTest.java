@@ -44,10 +44,10 @@ class TrainerServiceTest {
         when(userUtil.generateUsername(anyString(), anyString(), anyList())).thenReturn("jane.doe");
         when(userUtil.generatePassword()).thenReturn("password123");
 
-        Trainer result = trainerService.createTrainer(trainer);
+        Optional<Trainer> result = trainerService.createTrainer(trainer);
 
         assertNotNull(result);
-        assertEquals("Jane", result.getUser().getFirstName());
+        assertEquals("Jane", result.get().getUser().getFirstName());
         verify(trainerRepository, times(1)).save(trainer);
     }
 
@@ -55,9 +55,9 @@ class TrainerServiceTest {
     void createTrainer_Failure_InvalidData() {
         Trainer trainer = new Trainer();
 
-        Trainer result = trainerService.createTrainer(trainer);
+        Optional<Trainer> result = trainerService.createTrainer(trainer);
 
-        assertNull(result);
+        assertFalse(result.isPresent());
         verify(trainerRepository, never()).save(any(Trainer.class));
     }
 

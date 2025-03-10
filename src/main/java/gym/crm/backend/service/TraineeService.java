@@ -32,10 +32,10 @@ public class TraineeService {
         this.userUtil = userUtil;
     }
 
-    public Trainee createTrainee(Trainee trainee) {
+    public Optional<Trainee> createTrainee(Trainee trainee) {
         if (!dataValidation(trainee)) {
             log.log(Level.WARNING, "Trainee data validation failure");
-            return null;
+            return Optional.empty();
         }
         List<String> usernames = getTraineeUsernames(traineeRepository.findAll());
         String username = userUtil.generateUsername(trainee.getUser().getFirstName(), trainee.getUser().getLastName(), usernames);
@@ -51,7 +51,7 @@ public class TraineeService {
         }
         trainee.getUser().setPassword(password);
         log.log(Level.INFO, "Trainee created with username: {0}", username);
-        return traineeRepository.save(trainee);
+        return Optional.of(traineeRepository.save(trainee));
     }
 
     public Optional<Trainee> getTraineeByUsername(String username) {
@@ -113,7 +113,6 @@ public class TraineeService {
     public boolean updateTrainersTraineeList(String username, String trainerUsername) {
         Trainee trainee = traineeRepository.findByUserUsername(username).orElse(null);
         Trainer trainer = trainerRepository.findByUserUsername(trainerUsername).orElse(null);
-
         if (trainee == null || trainer == null) {
             return false;
         }
@@ -140,7 +139,7 @@ public class TraineeService {
     }
 
     private List<String> getTraineeUsernames(List<Trainee> trainees) {
-        if (trainees == null) {
+        if (trainees.isEmpty()) {
             return List.of();
         }
         return trainees.stream().map(t -> t.getUser().getUsername()).toList();

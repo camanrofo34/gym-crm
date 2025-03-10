@@ -51,10 +51,10 @@ class TraineeServiceTest {
 
         when(userUtil.generatePassword()).thenReturn("password123");
 
-        Trainee result = traineeService.createTrainee(trainee);
+        Optional<Trainee> result = traineeService.createTrainee(trainee);
 
         assertNotNull(result);
-        assertEquals("John", result.getUser().getFirstName());
+        assertEquals("John", result.get().getUser().getFirstName());
         verify(traineeRepository, times(1)).save(trainee);
     }
 
@@ -62,9 +62,9 @@ class TraineeServiceTest {
     void createTrainee_Failure_InvalidData() {
         Trainee trainee = new Trainee();
 
-        Trainee result = traineeService.createTrainee(trainee);
+        Optional<Trainee> result = traineeService.createTrainee(trainee);
 
-        assertNull(result);
+        assertFalse(result.isPresent());
         verify(traineeRepository, never()).save(any(Trainee.class));
     }
 
