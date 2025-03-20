@@ -1,4 +1,4 @@
-package gym.crm.backend.domain;
+package gym.crm.backend.domain.entities;
 
 import jakarta.persistence.*;
 import lombok.*;

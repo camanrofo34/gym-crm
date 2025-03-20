@@ -1,8 +1,12 @@
 package gym.crm.backend.service;
 
-import gym.crm.backend.domain.Trainee;
-import gym.crm.backend.domain.Trainer;
-import gym.crm.backend.domain.User;
+import gym.crm.backend.domain.entities.*;
+import gym.crm.backend.domain.request.TraineeCreationRequest;
+import gym.crm.backend.domain.request.TraineeUpdateRequest;
+import gym.crm.backend.domain.response.trainee.TraineeGetProfileResponse;
+import gym.crm.backend.domain.response.trainee.TraineeUpdateResponse;
+import gym.crm.backend.domain.response.UserCreationResponse;
+import gym.crm.backend.domain.response.trainee.TrainersTraineeResponse;
 import gym.crm.backend.repository.TraineeRepository;
 import gym.crm.backend.repository.TrainerRepository;
 import gym.crm.backend.util.UserUtil;
@@ -12,7 +16,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -38,334 +44,165 @@ class TraineeServiceTest {
 
     @Test
     void createTrainee_Success() {
-        Trainee trainee = new Trainee();
-        User user = new User();
-        user.setFirstName("John");
-        user.setLastName("Doe");
-        trainee.setUser(user);
-
-        when(traineeRepository.save(any(Trainee.class))).thenReturn(trainee);
-
-        when(userUtil.generateUsername(anyString(), anyString(), anyList()))
-                .thenReturn("john.doe");
-
+        TraineeCreationRequest request = new TraineeCreationRequest();
+        request.setFirstName("John");
+        request.setLastName("Doe");
+        request.setAddress("123 Main St");
+        List<Trainee> trainees = new ArrayList<>();
+        when(traineeRepository.findAll()).thenReturn(trainees);
+        when(userUtil.generateUsername(anyString(), anyString(), anyList())).thenReturn("johndoe");
         when(userUtil.generatePassword()).thenReturn("password123");
+        when(traineeRepository.save(any(Trainee.class))).thenReturn(new Trainee());
 
-        Optional<Trainee> result = traineeService.createTrainee(trainee);
+        Optional<UserCreationResponse> response = traineeService.createTrainee(request);
 
-        assertNotNull(result);
-        assertEquals("John", result.get().getUser().getFirstName());
-        verify(traineeRepository, times(1)).save(trainee);
+        assertTrue(response.isPresent());
+        assertEquals("johndoe", response.get().getUsername());
+        assertEquals("password123", response.get().getPassword());
     }
 
     @Test
-    void createTrainee_Failure_InvalidData() {
-        Trainee trainee = new Trainee();
+    void createTrainee_Failure_GenerateUsername() {
+        TraineeCreationRequest request = new TraineeCreationRequest();
+        request.setFirstName("John");
+        request.setLastName("Doe");
+        List<Trainee> trainees = new ArrayList<>();
+        when(traineeRepository.findAll()).thenReturn(trainees);
+        when(userUtil.generateUsername(anyString(), anyString(), anyList())).thenReturn("");
 
-        Optional<Trainee> result = traineeService.createTrainee(trainee);
+        assertThrows(RuntimeException.class, () -> traineeService.createTrainee(request));
+    }
 
-        assertFalse(result.isPresent());
-        verify(traineeRepository, never()).save(any(Trainee.class));
+    @Test
+    void createTrainee_Failure_GeneratePassword() {
+        TraineeCreationRequest request = new TraineeCreationRequest();
+        request.setFirstName("John");
+        request.setLastName("Doe");
+        List<Trainee> trainees = new ArrayList<>();
+        when(traineeRepository.findAll()).thenReturn(trainees);
+        when(userUtil.generateUsername(anyString(), anyString(), anyList())).thenReturn("johndoe");
+        when(userUtil.generatePassword()).thenReturn(null);
+
+        assertThrows(RuntimeException.class, () -> traineeService.createTrainee(request));
     }
 
     @Test
     void getTraineeByUsername_Success() {
         Trainee trainee = new Trainee();
         User user = new User();
-        user.setUsername("john.doe");
+        user.setUsername("johndoe");
         trainee.setUser(user);
+        trainee.setTrainers(List.of());
+        when(traineeRepository.findByUserUsername(anyString())).thenReturn(Optional.of(trainee));
 
-        when(traineeRepository.findByUserUsername("john.doe")).thenReturn(Optional.of(trainee));
+        Optional<TraineeGetProfileResponse> response = traineeService.getTraineeByUsername("johndoe");
 
-        Optional<Trainee> result = traineeService.getTraineeByUsername("john.doe");
-
-        assertTrue(result.isPresent());
-        assertEquals("john.doe", result.get().getUser().getUsername());
+        assertTrue(response.isPresent());
     }
 
     @Test
     void getTraineeByUsername_NotFound() {
-        when(traineeRepository.findByUserUsername("john.doe")).thenReturn(Optional.empty());
+        when(traineeRepository.findByUserUsername(anyString())).thenReturn(Optional.empty());
 
-        Optional<Trainee> result = traineeService.getTraineeByUsername("john.doe");
+        Optional<TraineeGetProfileResponse> response = traineeService.getTraineeByUsername("johndoe");
 
-        assertFalse(result.isPresent());
-    }
-
-    @Test
-    void matchTraineeUsernameAndPassword_Success() {
-        Trainee trainee = new Trainee();
-        User user = new User();
-        user.setUsername("john.doe");
-        user.setPassword("password123");
-        trainee.setUser(user);
-
-        when(traineeRepository.findByUserUsername("john.doe")).thenReturn(Optional.of(trainee));
-
-        boolean result = traineeService.matchTraineeUsernameAndPassword("john.doe", "password123");
-
-        assertTrue(result);
-    }
-
-    @Test
-    void matchTraineeUsernameAndPassword_FailureByUsername() {
-        Trainee trainee = new Trainee();
-        User user = new User();
-        user.setUsername("john.doe");
-        user.setPassword("password123");
-        trainee.setUser(user);
-
-        when(traineeRepository.findByUserUsername("john.doe")).thenReturn(Optional.of(trainee));
-
-        boolean result = traineeService.matchTraineeUsernameAndPassword("john.doe", "wrong");
-
-        assertFalse(result);
-    }
-
-    @Test
-    void matchTraineeUsernameAndPassword_FailureByPassword() {
-        when(traineeRepository.findByUserUsername("john.doe")).thenReturn(Optional.empty());
-
-        boolean result = traineeService.matchTraineeUsernameAndPassword("john.doe", "password123");
-
-        assertFalse(result);
-    }
-
-    @Test
-    void changePassword_Success() {
-        Trainee trainee = new Trainee();
-        User user = new User();
-        user.setUsername("john.doe");
-        trainee.setUser(user);
-
-        when(traineeRepository.findByUserUsername("john.doe")).thenReturn(Optional.of(trainee));
-
-        traineeService.changePassword("john.doe", "newpassword");
-
-        assertEquals("newpassword", trainee.getUser().getPassword());
-        verify(traineeRepository, times(1)).save(trainee);
-    }
-
-    @Test
-    void changePassword_TraineeNotFound() {
-        when(traineeRepository.findByUserUsername("johndoe")).thenReturn(Optional.empty());
-
-        traineeService.changePassword("johndoe", "newpassword");
-
-        verify(traineeRepository, never()).save(any(Trainee.class));
-    }
-
-    @Test
-    void deleteTrainee_Success() {
-        Trainee trainee = new Trainee();
-        User user = new User();
-        user.setUsername("john.doe");
-        trainee.setUser(user);
-
-        when(traineeRepository.findByUserUsername("john.doe")).thenReturn(Optional.of(trainee));
-
-        traineeService.deleteTrainee("john.doe");
-
-        verify(traineeRepository, times(1)).delete(trainee);
-    }
-
-    @Test
-    void deleteTrainee_TraineeNotFound() {
-        when(traineeRepository.findByUserUsername("johndoe")).thenReturn(Optional.empty());
-
-        assertThrows(RuntimeException.class, () -> traineeService.deleteTrainee("johndoe"));
+        assertFalse(response.isPresent());
     }
 
     @Test
     void updateTrainee_Success() {
         Trainee trainee = new Trainee();
         User user = new User();
-        user.setFirstName("john");
-        user.setLastName("doe");
-        user.setUsername("john.doe");
+        user.setUsername("johndoe");
         trainee.setUser(user);
+        trainee.setTrainers(List.of());
+        when(traineeRepository.findByUserUsername(anyString())).thenReturn(Optional.of(trainee));
+        when(traineeRepository.save(any(Trainee.class))).thenReturn(trainee);
 
-        when(traineeRepository.findByUserUsername("john.doe")).thenReturn(Optional.of(trainee));
+        TraineeUpdateRequest request = new TraineeUpdateRequest();
+        request.setFirstName("John");
+        request.setLastName("Doe");
+        request.setAddress("123 Main St");
 
-        traineeService.updateTraineeProfile(trainee);
+        Optional<TraineeUpdateResponse> response = traineeService.updateTrainee("johndoe", request);
 
-        verify(traineeRepository, times(1)).save(trainee);
+        assertTrue(response.isPresent());
+        assertEquals("John", response.get().getFirstName());
+        assertEquals("Doe", response.get().getLastName());
     }
 
     @Test
-    void updateTrainee_Failure_InvalidData() {
-        Trainee trainee = new Trainee();
+    void updateTrainee_NotFound() {
+        when(traineeRepository.findByUserUsername(anyString())).thenReturn(Optional.empty());
 
-        traineeService.updateTraineeProfile(trainee);
+        TraineeUpdateRequest request = new TraineeUpdateRequest();
+        request.setFirstName("John");
+        request.setLastName("Doe");
 
-        verify(traineeRepository, never()).save(trainee);
+        Optional<TraineeUpdateResponse> response = traineeService.updateTrainee("johndoe", request);
+
+        assertFalse(response.isPresent());
     }
 
     @Test
-    void activateDeactivateTrainee_Success() {
+    void deleteTrainee_Success() {
         Trainee trainee = new Trainee();
         User user = new User();
-        user.setUsername("john.doe");
-        user.setIsActive(true);
+        user.setUsername("johndoe");
         trainee.setUser(user);
+        when(traineeRepository.findByUserUsername(anyString())).thenReturn(Optional.of(trainee));
 
-        when(traineeRepository.findByUserUsername("john.doe")).thenReturn(Optional.of(trainee));
+        traineeService.deleteTrainee("johndoe");
 
-        traineeService.activateDeactivateTrainee("john.doe");
-
-        assertFalse(trainee.getUser().getIsActive());
-        verify(traineeRepository, times(1)).save(trainee);
+        verify(traineeRepository, times(1)).delete(trainee);
     }
 
     @Test
-    void activateDeactivateTrainee_TraineeNotFound() {
-        when(traineeRepository.findByUserUsername("john.doe")).thenReturn(Optional.empty());
+    void deleteTrainee_NotFound() {
+        when(traineeRepository.findByUserUsername(anyString())).thenReturn(Optional.empty());
 
-        traineeService.activateDeactivateTrainee("john.doe");
-
-        verify(traineeRepository, never()).save(any(Trainee.class));
+        assertThrows(RuntimeException.class, () -> traineeService.deleteTrainee("johndoe"));
     }
 
     @Test
     void getTrainersNotInTrainersTraineeListByTraineeUserUsername_Success() {
-        // Arrange
-        String traineeUsername = "john.doe";
-
-        Trainer trainer1 = new Trainer();
-        User user1 = new User();
-        trainer1.setUser(user1);
-        trainer1.getUser().setFirstName("Trainer One");
-
-        Trainer trainer2 = new Trainer();
-        User user2 = new User();
-        trainer2.setUser(user2);
-        trainer2.getUser().setFirstName("Trainer Two");
-
-        List<Trainer> expectedTrainers = List.of(trainer1, trainer2);
-
-        // Simulating repository behavior
-        when(traineeRepository.findTrainersNotInTrainersTraineeListByTraineeUserUsername(traineeUsername))
-                .thenReturn(expectedTrainers);
-
-        // Act
-        List<Trainer> result = traineeService.getTrainersNotInTrainersTraineeListByTraineeUserUsername(traineeUsername);
-
-        // Assert
-        assertNotNull(result);
-        assertEquals(2, result.size());
-        assertEquals("Trainer One", result.get(0).getUser().getFirstName());
-        assertEquals("Trainer Two", result.get(1).getUser().getFirstName());
-
-        verify(traineeRepository, times(1))
-                .findTrainersNotInTrainersTraineeListByTraineeUserUsername(traineeUsername);
-    }
-
-    @Test
-    void getTrainersNotInTrainersTraineeListByTraineeUserUsername_EmptyList() {
-        // Arrange
-        String traineeUsername = "unknown.user";
-        when(traineeRepository.findTrainersNotInTrainersTraineeListByTraineeUserUsername(traineeUsername))
-                .thenReturn(Collections.emptyList());
-
-        // Act
-        List<Trainer> result = traineeService.getTrainersNotInTrainersTraineeListByTraineeUserUsername(traineeUsername);
-
-        // Assert
-        assertNotNull(result);
-        assertTrue(result.isEmpty());
-
-        verify(traineeRepository, times(1))
-                .findTrainersNotInTrainersTraineeListByTraineeUserUsername(traineeUsername);
-    }
-
-    @Test
-    void updateTrainersTraineeList_Success_NewTrainer() {
-        // Arrange
-        String username = "john.doe";
-
-        Trainee trainee = new Trainee();
-        trainee.setUser(new User());
-        trainee.setTrainers(new HashSet<>());
-
+        List<Trainer> trainers = new ArrayList<>();
         Trainer trainer = new Trainer();
-        String usernameTrainer = "trainer.user";
-        trainer.setUser(new User());
-
-        when(traineeRepository.findByUserUsername(username)).thenReturn(Optional.of(trainee));
-        when(trainerRepository.findByUserUsername(usernameTrainer)).thenReturn(Optional.of(trainer));
-
-        // Act
-        boolean result = traineeService.updateTrainersTraineeList(username, usernameTrainer);
-
-        // Assert
-        assertTrue(result);
-        assertEquals(1, trainee.getTrainers().size());
-        assertTrue(trainee.getTrainers().contains(trainer));
-
-        verify(traineeRepository, times(1)).save(trainee);
-    }
-
-    @Test
-    void updateTrainersTraineeList_TrainerAlreadyExists() {
-        // Arrange
-        String username = "john.doe";
-
-        Trainer trainer = new Trainer();
-        String usernameTrainer = "trainer.user";
-
-        Set<Trainer> trainers = new HashSet<>();
+        User user = new User();
+        user.setUsername("trainer1");
+        trainer.setUser(user);
+        trainer.setSpecialization(new TrainingType(1L, TrainingTypes.RESISTANCE, List.of(), List.of()));
         trainers.add(trainer);
+        when(traineeRepository.findTrainersNotInTrainersTraineeListByTraineeUserUsername(anyString())).thenReturn(trainers);
 
-        Trainee trainee = new Trainee();
-        trainee.setUser(new User());
-        trainee.setTrainers(trainers);
+        List<TrainersTraineeResponse> response = traineeService.getTrainersNotInTrainersTraineeListByTraineeUserUsername("johndoe");
 
-        when(traineeRepository.findByUserUsername(username)).thenReturn(Optional.of(trainee));
-        when(trainerRepository.findByUserUsername(usernameTrainer)).thenReturn(Optional.of(trainer));
-
-        // Act
-        boolean result = traineeService.updateTrainersTraineeList(username, usernameTrainer);
-
-        // Assert
-        assertFalse(result);
-        assertEquals(1, trainee.getTrainers().size());
-
-        verify(traineeRepository, never()).save(trainee);
+        assertEquals(1, response.size());
+        assertEquals("trainer1", response.getFirst().getTrainerUsername());
     }
 
     @Test
-    void updateTrainersTraineeList_TraineeNotFound() {
-        // Arrange
-        String username = "nonexistent.user";
-
-        when(traineeRepository.findByUserUsername(username)).thenReturn(Optional.empty());
-
-        // Act
-        boolean result = traineeService.updateTrainersTraineeList(username, "trainer.user");
-
-        // Assert
-        assertFalse(result);
-        verify(traineeRepository, never()).save(any(Trainee.class));
-    }
-
-    @Test
-    void updateTrainersTraineeList_TrainerNotFound() {
-        // Arrange
-        String username = "john.doe";
-
+    void updateTrainersTraineeList_Success() {
         Trainee trainee = new Trainee();
-        trainee.setUser(new User());
-        trainee.setTrainers(new HashSet<>());
-        String usernameTrainer = "trainer.user";
+        User user = new User();
+        user.setUsername("johndoe");
+        trainee.setUser(user);
+        when(traineeRepository.findByUserUsername(anyString())).thenReturn(Optional.of(trainee));
+        List<Trainer> trainers = new ArrayList<>();
+        Trainer trainer = new Trainer();
+        trainer.setSpecialization(new TrainingType(1L, TrainingTypes.RESISTANCE, List.of(), List.of()));
+        trainer.setTrainees(new ArrayList<>());
+        User trainerUser = new User();
+        trainerUser.setUsername("trainer1");
+        trainer.setUser(trainerUser);
+        trainers.add(trainer);
+        when(trainerRepository.findAll()).thenReturn(trainers);
 
-        when(traineeRepository.findByUserUsername(username)).thenReturn(Optional.of(trainee));
-        when(trainerRepository.findByUserUsername(usernameTrainer)).thenReturn(Optional.empty());
+        List<String> trainerUsernames = List.of("trainer1");
+        List<TrainersTraineeResponse> response = traineeService.updateTrainersTraineeList("johndoe", trainerUsernames);
 
-        // Act
-        boolean result = traineeService.updateTrainersTraineeList(username, usernameTrainer);
-
-        // Assert
-        assertFalse(result);
-        verify(traineeRepository, never()).save(any(Trainee.class));
+        assertEquals(1, response.size());
+        assertEquals("trainer1", response.getFirst().getTrainerUsername());
+        verify(traineeRepository, times(1)).save(trainee);
     }
 }

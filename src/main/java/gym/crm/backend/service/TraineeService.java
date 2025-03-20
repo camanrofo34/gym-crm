@@ -1,20 +1,27 @@
 package gym.crm.backend.service;
 
-import gym.crm.backend.domain.Trainee;
-import gym.crm.backend.domain.Trainer;
+import gym.crm.backend.domain.entities.Trainee;
+import gym.crm.backend.domain.entities.Trainer;
+import gym.crm.backend.domain.entities.User;
+import gym.crm.backend.domain.request.TraineeCreationRequest;
+import gym.crm.backend.domain.request.TraineeUpdateRequest;
+import gym.crm.backend.domain.response.trainee.TraineeGetProfileResponse;
+import gym.crm.backend.domain.response.trainee.TraineeUpdateResponse;
+import gym.crm.backend.domain.response.UserCreationResponse;
+import gym.crm.backend.domain.response.trainee.TrainersTraineeResponse;
 import gym.crm.backend.repository.TraineeRepository;
 import gym.crm.backend.repository.TrainerRepository;
 import gym.crm.backend.util.UserUtil;
 import jakarta.transaction.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 @Service
 public class TraineeService {
@@ -23,7 +30,7 @@ public class TraineeService {
     private final TrainerRepository trainerRepository;
     private final UserUtil userUtil;
 
-    private final Logger log = Logger.getLogger(TraineeService.class.getName());
+    private final Logger log = LoggerFactory.getLogger(TraineeService.class);
 
     @Autowired
     public TraineeService(TraineeRepository traineeRepository, TrainerRepository trainerRepository, UserUtil userUtil) {
@@ -32,64 +39,56 @@ public class TraineeService {
         this.userUtil = userUtil;
     }
 
-    public Optional<Trainee> createTrainee(Trainee trainee) {
-        if (!dataValidation(trainee)) {
-            log.log(Level.WARNING, "Trainee data validation failure");
-            return Optional.empty();
-        }
+    public Optional<UserCreationResponse> createTrainee(TraineeCreationRequest trainee) {
         List<String> usernames = getTraineeUsernames(traineeRepository.findAll());
-        String username = userUtil.generateUsername(trainee.getUser().getFirstName(), trainee.getUser().getLastName(), usernames);
-        if (username == null) {
-            log.severe("Username generation failed!");
+        log.info("Transaction ID: {}. Creating trainee", MDC.get("transactionId"));
+        String username = userUtil.generateUsername(trainee.getFirstName(), trainee.getLastName(), usernames);
+        if (username.isBlank()) {
+            log.error("Transaction ID: {}. Error creting username", MDC.get("transactionId"));
             throw new RuntimeException("Failed to generate username");
         }
-        trainee.getUser().setUsername(username);
         String password = userUtil.generatePassword();
         if (password == null) {
-            log.severe("Password generation failed!");
+            log.error("Transaction ID: {}. Error creating password", MDC.get("transactionId"));
             throw new RuntimeException("Failed to generate password");
         }
-        trainee.getUser().setPassword(password);
-        log.log(Level.INFO, "Trainee created with username: {0}", username);
-        return Optional.of(traineeRepository.save(trainee));
+        Trainee traineeEntity = getTrainee(trainee, username, password);
+        traineeRepository.save(traineeEntity);
+        log.info("Transaction ID: {}. Created trainee", MDC.get("transactionId"));
+        return Optional.of(new UserCreationResponse(username, password));
     }
 
-    public Optional<Trainee> getTraineeByUsername(String username) {
-        log.log(Level.INFO, "Getting trainee by username: {0}", username);
-        return traineeRepository.findByUserUsername(username);
-    }
-
-    public boolean matchTraineeUsernameAndPassword(String username, String password) {
-        Optional<Trainee> trainee = traineeRepository.findByUserUsername(username);
-        log.log(Level.INFO, "Matching trainee by username: {0}", username);
-        return trainee.map(t -> t.getUser().getPassword().equals(password)).orElse(false);
-    }
-
-    public void changePassword(String username, String newPassword) {
-        Optional<Trainee> trainee = traineeRepository.findByUserUsername(username);
-        log.log(Level.INFO, "Changing trainee password by username: {0}", username);
-        trainee.ifPresent(t -> {
-            t.getUser().setPassword(newPassword);
-            traineeRepository.save(t);
-        });
-    }
-
-    public void updateTraineeProfile(Trainee trainee) {
-        if (dataValidation(trainee)) {
-            log.log(Level.INFO, "Updating trainee profile");
-            traineeRepository.save(trainee);
-        }else {
-            log.log(Level.WARNING, "Trainee data validation failure");
+    public Optional<TraineeGetProfileResponse> getTraineeByUsername(String username) {
+        log.info("Transaction ID: {}. Getting trainee profile", MDC.get("transactionId"));
+        Trainee trainee = traineeRepository.findByUserUsername(username).orElse(null);
+        if (trainee == null) {
+            log.error("Transaction ID: {}. Error getting trainee", MDC.get("transactionId"));
+            return Optional.empty();
         }
+        TraineeGetProfileResponse traineeCreationResponse = new TraineeGetProfileResponse(trainee);
+        return Optional.of(traineeCreationResponse);
     }
 
-    public void activateDeactivateTrainee(String username) {
-        Optional<Trainee> trainee = traineeRepository.findByUserUsername(username);
-        trainee.ifPresent(t -> {
-            t.getUser().setIsActive(!t.getUser().getIsActive());
-            traineeRepository.save(t);
-        });
-        log.log(Level.INFO, "Trainee changed state by username: {0}", username);
+    public Optional<TraineeUpdateResponse> updateTrainee(String username, TraineeUpdateRequest trainee) {
+        log.info("Transaction ID: {}. Updating trainee", MDC.get("transactionId"));
+        Trainee traineeEntity = traineeRepository.findByUserUsername(username)
+                .orElse(null);
+        if (traineeEntity == null) {
+            log.error("Transaction ID: {}. Error updating trainee", MDC.get("transactionId"));
+            return Optional.empty();
+        }
+        traineeEntity.getUser().setFirstName(trainee.getFirstName());
+        traineeEntity.getUser().setLastName(trainee.getLastName());
+        if (trainee.getDateOfBirth() != null) {
+            traineeEntity.setDateOfBirth(trainee.getDateOfBirth());
+        }
+        if (!trainee.getAddress().isEmpty()) {
+            traineeEntity.setAddress(trainee.getAddress());
+        }
+        traineeRepository.save(traineeEntity);
+        log.info("Transaction ID: {}. Updated trainee", MDC.get("transactionId"));
+        TraineeUpdateResponse traineeUpdateResponse = new  TraineeUpdateResponse(traineeEntity);
+        return Optional.of(traineeUpdateResponse);
     }
 
     @Transactional
@@ -101,42 +100,60 @@ public class TraineeService {
                 trainer.getTrainees().remove(trainee);
             }
         }
-        log.log(Level.INFO, "Trainee deleted by username: {0}", username);
+        log.info("Transaction ID: {}. Deleting trainee", MDC.get("transactionId"));
         traineeRepository.delete(trainee);
     }
 
-    public List<Trainer> getTrainersNotInTrainersTraineeListByTraineeUserUsername(String traineeUsername) {
-        log.log(Level.INFO, "Getting trainers by username: {0}", traineeUsername);
-        return traineeRepository.findTrainersNotInTrainersTraineeListByTraineeUserUsername(traineeUsername);
+    public List<TrainersTraineeResponse> getTrainersNotInTrainersTraineeListByTraineeUserUsername(String traineeUsername) {
+        log.info("Transaction ID: {}. Getting trainers not in trainee list", MDC.get("transactionId"));
+        List<TrainersTraineeResponse> trainers = new ArrayList<>();
+        List<Trainer> trainersFound =traineeRepository.findTrainersNotInTrainersTraineeListByTraineeUserUsername(traineeUsername);
+        trainersFound.forEach(trainer -> {
+            TrainersTraineeResponse trainersTraineeResponse = new TrainersTraineeResponse(
+                    trainer.getUser().getUsername(),
+                    trainer.getUser().getFirstName(),
+                    trainer.getUser().getLastName(),
+                    trainer.getSpecialization().getId()
+            );
+            trainers.add(trainersTraineeResponse);
+        });
+        return trainers;
     }
 
-    public boolean updateTrainersTraineeList(String username, String trainerUsername) {
+    public List<TrainersTraineeResponse> updateTrainersTraineeList(String username, List<String> trainerUsername) {
+        log.info("Transaction ID: {}. Updating trainers trainee list", MDC.get("transactionId"));
         Trainee trainee = traineeRepository.findByUserUsername(username).orElse(null);
-        Trainer trainer = trainerRepository.findByUserUsername(trainerUsername).orElse(null);
-        if (trainee == null || trainer == null) {
-            return false;
+        if (trainee == null) {
+            log.error("Transaction ID: {}. Error updating trainers trainee list", MDC.get("transactionId"));
+            return List.of();
         }
-        if (trainee.getTrainers() == null) {
-            trainee.setTrainers(new HashSet<>());
+        List<Trainer> trainers = trainerRepository.findAll();
+        List<TrainersTraineeResponse> trainersTraineeResponses = new ArrayList<>();
+        List<Trainer> newTrainers = new ArrayList<>();
+        for (String trainer : trainerUsername) {
+            Trainer trainerEntity = trainers.stream().filter(t -> t.getUser().getUsername().equals(trainer)).findFirst().orElse(null);
+            if (trainerEntity != null) {
+                newTrainers.add(trainerEntity);
+                List<Trainee> trainees = trainerEntity.getTrainees();
+                trainees.add(trainee);
+                trainerEntity.setTrainees(trainees);
+                trainerRepository.save(trainerEntity);
+                TrainersTraineeResponse trainersTraineeResponse = new TrainersTraineeResponse(
+                        trainerEntity.getUser().getUsername(),
+                        trainerEntity.getUser().getFirstName(),
+                        trainerEntity.getUser().getLastName(),
+                        trainerEntity.getSpecialization().getId()
+                );
+                trainersTraineeResponses.add(trainersTraineeResponse);
+            }
         }
-        if (!trainee.getTrainers().contains(trainer)) {
-            trainee.getTrainers().add(trainer);
-            traineeRepository.save(trainee);
-            log.log(Level.INFO, "Trainer {0} added to Trainee {1}", new Object[]{trainerUsername, username});
-            return true;
-        }
-        return false;
+        trainee.setTrainers(newTrainers);
+        traineeRepository.save(trainee);
+        log.info("Transaction ID: {}. Updated trainers trainee list", MDC.get("transactionId"));
+        return trainersTraineeResponses;
     }
 
-
-    private boolean dataValidation(Trainee trainee) {
-        log.log(Level.INFO, "Checking data validation");
-        try {
-            return trainee.getUser().getFirstName() != null && trainee.getUser().getLastName() != null;
-        } catch (NullPointerException e) {
-            return false;
-        }
-    }
+    //Helping methods for working with Trainee entity
 
     private List<String> getTraineeUsernames(List<Trainee> trainees) {
         if (trainees.isEmpty()) {
@@ -144,4 +161,23 @@ public class TraineeService {
         }
         return trainees.stream().map(t -> t.getUser().getUsername()).toList();
     }
+
+    private Trainee getTrainee(TraineeCreationRequest trainee, String username, String password) {
+        User user = new User();
+        user.setUsername(username);
+        user.setPassword(password);
+        user.setFirstName(trainee.getFirstName());
+        user.setLastName(trainee.getLastName());
+        user.setIsActive(true);
+        Trainee traineeEntity = new Trainee();
+        traineeEntity.setUser(user);
+        if (trainee.getDateOfBirth() != null) {
+            traineeEntity.setDateOfBirth(trainee.getDateOfBirth());
+        }
+        if (!trainee.getAddress().isEmpty()) {
+            traineeEntity.setAddress(trainee.getAddress());
+        }
+        return traineeEntity;
+    }
+
 }

@@ -1,97 +1,94 @@
 package gym.crm.backend.service;
 
 
-import gym.crm.backend.domain.Trainer;
+import gym.crm.backend.domain.entities.Trainer;
+import gym.crm.backend.domain.entities.User;
+import gym.crm.backend.domain.request.TrainerCreationRequest;
+import gym.crm.backend.domain.request.TrainerUpdateRequest;
+import gym.crm.backend.domain.response.trainer.TrainerGetProfileResponse;
+import gym.crm.backend.domain.response.UserCreationResponse;
+import gym.crm.backend.domain.response.trainer.TrainerUpdateResponse;
 import gym.crm.backend.repository.TrainerRepository;
+import gym.crm.backend.repository.TrainingTypeRepository;
 import gym.crm.backend.util.UserUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 @Service
 public class TrainerService {
     private final TrainerRepository trainerRepository;
+    private final TrainingTypeRepository trainingTypeRepository;
     private final UserUtil userUtil;
 
-    private final Logger log = Logger.getLogger(TrainerService.class.getName());
+    private final Logger log = LoggerFactory.getLogger(TrainerService.class);
 
     @Autowired
-    public TrainerService(TrainerRepository trainerRepository, UserUtil userUtil) {
+    public TrainerService(TrainerRepository trainerRepository, TrainingTypeRepository trainingTypeRepository ,UserUtil userUtil) {
         this.trainerRepository = trainerRepository;
+        this.trainingTypeRepository = trainingTypeRepository;
         this.userUtil = userUtil;
     }
 
-    public Optional<Trainer> createTrainer(Trainer trainer) {
-        if (validateTrainer(trainer)) {
-            log.log(Level.WARNING, "Trainer data validation failure");
-            return Optional.empty();
-        }
+    public Optional<UserCreationResponse> createTrainer(TrainerCreationRequest trainer) {
         List<String> usernames = getTraineeUsernames(trainerRepository.findAll());
-        String username = userUtil.generateUsername(trainer.getUser().getFirstName(), trainer.getUser().getLastName(), usernames);
+        String username = userUtil.generateUsername(trainer.getFirstName(), trainer.getLastName(), usernames);
+        log.info("Transaction ID: {}. Generating username for trainer: {}", MDC.get("transactionId"),username);
         if (username == null) {
-            log.severe("Username generation failed!");
+            log.error("Transaction ID: {}. Error creating username", MDC.get("transactionId"));
             throw new RuntimeException("Failed to generate username");
         }
-        trainer.getUser().setUsername(username);
         String password = userUtil.generatePassword();
         if (password == null) {
-            log.severe("Password generation failed!");
+            log.error("Transaction ID: {}. Error creating password", MDC.get("transactionId"));
             throw new RuntimeException("Failed to generate password");
         }
-        trainer.getUser().setPassword(password);
-        log.log(Level.INFO, "Trainer created with username: {0}", username);
-        return Optional.of(trainerRepository.save(trainer));
+        User user = new User();
+        user.setUsername(username);
+        user.setPassword(password);
+        user.setIsActive(true);
+        user.setFirstName(trainer.getFirstName());
+        user.setLastName(trainer.getLastName());
+        Trainer trainerEntity = new Trainer();
+        trainerEntity.setUser(user);
+        trainerEntity.setSpecialization(trainingTypeRepository.getReferenceById(trainer.getTrainingTypeId()));
+        trainerRepository.save(trainerEntity);
+        log.info("Transaction ID: {}. Successfully created trainer", MDC.get("transactionId"));
+        return Optional.of(new UserCreationResponse(username, password));
     }
 
-    public Optional<Trainer> getTrainerByUsername(String username) {
-        log.log(Level.INFO, "Getting trainer by username: {0}", username);
-        return trainerRepository.findByUserUsername(username);
-    }
-
-    public boolean matchTrainerUsernameAndPassword(String username, String password) {
-        Optional<Trainer> trainer = trainerRepository.findByUserUsername(username);
-        log.log(Level.INFO, "Matching trainer by username: {0}", username);
-        return trainer.map(t -> t.getUser().getPassword().equals(password)).orElse(false);
-    }
-
-    public void changePassword(String username, String newPassword) {
-        Optional<Trainer> trainer = trainerRepository.findByUserUsername(username);
-        log.log(Level.INFO, "Changing trainer password by username: {0}", username);
-        trainer.ifPresent(t -> {
-            t.getUser().setPassword(newPassword);
-            trainerRepository.save(t);
-        });
-    }
-
-    public void updateTrainerProfile(Trainer trainer) {
-        if (validateTrainer(trainer)) {
-            log.log(Level.WARNING, "Trainer data validation failure");
-        }else{
-            log.log(Level.INFO, "Updating trainer profile");
-            trainerRepository.save(trainer);
+    public Optional<TrainerGetProfileResponse> getTrainerByUsername(String username) {
+        log.info("Transaction ID: {}. Getting trainer profile", MDC.get("transactionId"));
+        Trainer trainer = trainerRepository.findByUserUsername(username).orElse(null);
+        if (trainer == null) {
+            log.error("Transaction ID: {}. Error getting trainer profile", MDC.get("transactionId"));
+            return Optional.empty();
         }
+        TrainerGetProfileResponse trainerResponse = new TrainerGetProfileResponse(trainer);
+        log.info("Transaction ID: {}. Successfully fetched trainer profile", MDC.get("transactionId"));
+        return Optional.of(trainerResponse);
     }
 
-    public void activateDeactivateTrainer(String username) {
-        Optional<Trainer> trainer = trainerRepository.findByUserUsername(username);
-        log.log(Level.INFO, "Activating/Deactivating trainer by username: {0}", username);
-        trainer.ifPresent(t -> {
-            t.getUser().setIsActive(!t.getUser().getIsActive());
-            trainerRepository.save(t);
-        });
-    }
-
-    public boolean validateTrainer(Trainer trainer) {
-        log.log(Level.INFO, "Checking data validation");
-        try {
-            return trainer.getUser().getFirstName() == null || trainer.getUser().getLastName() == null;
-        } catch (NullPointerException e) {
-            return true;
+    public Optional<TrainerUpdateResponse> updateTrainerProfile(String username, TrainerUpdateRequest trainer) {
+        log.info("Transaction ID: {}. Updating trainer profile", MDC.get("transactionId"));
+        Trainer trainerEntity = trainerRepository.findByUserUsername(username)
+                .orElse(null);
+        if (trainerEntity == null) {
+            log.error("Transaction ID: {}. Error updating trainer profile", MDC.get("transactionId"));
+            return Optional.empty();
         }
+        trainerEntity.getUser().setFirstName(trainer.getFirstName());
+        trainerEntity.getUser().setLastName(trainer.getLastName());
+        trainerEntity.setSpecialization(trainingTypeRepository.getReferenceById(trainer.getTrainingTypeId()));
+        trainerRepository.save(trainerEntity);
+        log.info("Transaction ID: {}. Successfully updated trainer profile", MDC.get("transactionId"));
+        TrainerUpdateResponse trainerUpdateResponse = new TrainerUpdateResponse(trainerEntity);
+        return Optional.of(trainerUpdateResponse);
     }
 
     private List<String> getTraineeUsernames(List<Trainer> trainers) {

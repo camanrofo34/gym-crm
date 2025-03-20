@@ -1,4 +1,4 @@
-package gym.crm.backend.domain;
+package gym.crm.backend.domain.entities;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -36,5 +36,5 @@ public class Trainee {
 
     @ManyToMany(mappedBy = "trainees", fetch = FetchType.LAZY)
     @Setter
-    private Set<Trainer> trainers;
+    private List<Trainer> trainers;
 }

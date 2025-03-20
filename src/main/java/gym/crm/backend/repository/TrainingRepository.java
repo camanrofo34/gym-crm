@@ -1,6 +1,6 @@
 package gym.crm.backend.repository;
 
-import gym.crm.backend.domain.Training;
+import gym.crm.backend.domain.entities.Training;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 

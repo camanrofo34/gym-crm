@@ -1,4 +1,4 @@
-package gym.crm.backend.domain;
+package gym.crm.backend.domain.entities;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -41,5 +41,5 @@ public class Trainer {
             inverseJoinColumns = @JoinColumn(name = "trainee_id")
     )
     @Setter
-    private Set<Trainee> trainees;
+    private List<Trainee> trainees;
 }
