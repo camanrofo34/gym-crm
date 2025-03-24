@@ -12,8 +12,9 @@ public class OpenApiConfig {
     public OpenAPI customOpenAPI() {
         return new OpenAPI()
                 .info(new Info()
-                        .title("Tu API")
+                        .title("Gym-CRM RestAPI")
                         .version("1.0")
-                        .description("Descripción de tu API"));
+                        .description("API for the management of" +
+                                " a gym's customers, trainers, and training sessions."));
     }
 }

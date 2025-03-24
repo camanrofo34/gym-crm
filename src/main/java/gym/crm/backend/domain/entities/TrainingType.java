@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.util.List;
+import java.util.Set;
 
 @AllArgsConstructor
 @NoArgsConstructor
@@ -23,9 +24,9 @@ public class TrainingType {
 
     @OneToMany(mappedBy = "trainingType", fetch = FetchType.LAZY)
     @Setter
-    private List<Training> trainings;
+    private Set<Training> trainings;
 
     @OneToMany(mappedBy = "specialization", fetch = FetchType.LAZY)
     @Setter
-    private List<Trainer> trainers;
+    private Set<Trainer> trainers;
 }

@@ -2,31 +2,34 @@ package gym.crm.backend.service;
 
 
 import gym.crm.backend.domain.entities.Trainer;
+import gym.crm.backend.domain.entities.TrainingType;
 import gym.crm.backend.domain.entities.User;
 import gym.crm.backend.domain.request.TrainerCreationRequest;
 import gym.crm.backend.domain.request.TrainerUpdateRequest;
 import gym.crm.backend.domain.response.trainer.TrainerGetProfileResponse;
 import gym.crm.backend.domain.response.UserCreationResponse;
 import gym.crm.backend.domain.response.trainer.TrainerUpdateResponse;
+import gym.crm.backend.exception.runtimeException.PasswordNotCreatedException;
+import gym.crm.backend.exception.entityNotFoundException.ProfileNotFoundException;
+import gym.crm.backend.exception.entityNotFoundException.TrainingTypeNotFoundException;
+import gym.crm.backend.exception.runtimeException.UsernameNotCreatedException;
 import gym.crm.backend.repository.TrainerRepository;
 import gym.crm.backend.repository.TrainingTypeRepository;
 import gym.crm.backend.util.UserUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
+@Slf4j
 public class TrainerService {
     private final TrainerRepository trainerRepository;
     private final TrainingTypeRepository trainingTypeRepository;
     private final UserUtil userUtil;
-
-    private final Logger log = LoggerFactory.getLogger(TrainerService.class);
 
     @Autowired
     public TrainerService(TrainerRepository trainerRepository, TrainingTypeRepository trainingTypeRepository ,UserUtil userUtil) {
@@ -35,19 +38,25 @@ public class TrainerService {
         this.userUtil = userUtil;
     }
 
-    public Optional<UserCreationResponse> createTrainer(TrainerCreationRequest trainer) {
+    @Transactional
+    public UserCreationResponse createTrainer(TrainerCreationRequest trainer) {
+
+        String transactionId = MDC.get("transactionId");
+
         List<String> usernames = getTraineeUsernames(trainerRepository.findAll());
+
         String username = userUtil.generateUsername(trainer.getFirstName(), trainer.getLastName(), usernames);
-        log.info("Transaction ID: {}. Generating username for trainer: {}", MDC.get("transactionId"),username);
-        if (username == null) {
-            log.error("Transaction ID: {}. Error creating username", MDC.get("transactionId"));
-            throw new RuntimeException("Failed to generate username");
+        if (username == null || username.isEmpty()) {
+            log.error("Transaction ID: {}. Failed to generate username", transactionId);
+            throw new UsernameNotCreatedException("Failed to generate username");
         }
+
         String password = userUtil.generatePassword();
-        if (password == null) {
-            log.error("Transaction ID: {}. Error creating password", MDC.get("transactionId"));
-            throw new RuntimeException("Failed to generate password");
+        if (password == null || password.isEmpty()) {
+            log.error("Transaction ID: {}. Failed to generate password", transactionId);
+            throw new PasswordNotCreatedException("Failed to generate password");
         }
+
         User user = new User();
         user.setUsername(username);
         user.setPassword(password);
@@ -56,39 +65,58 @@ public class TrainerService {
         user.setLastName(trainer.getLastName());
         Trainer trainerEntity = new Trainer();
         trainerEntity.setUser(user);
-        trainerEntity.setSpecialization(trainingTypeRepository.getReferenceById(trainer.getTrainingTypeId()));
+
+        TrainingType trainingType = trainingTypeRepository.findById(trainer.getTrainingTypeId()).orElseThrow(
+                () -> {
+                    log.error("Transaction ID: {}. Training type with id: {} not found", transactionId, trainer.getTrainingTypeId());
+                    return new TrainingTypeNotFoundException("Training type with id: " + trainer.getTrainingTypeId() + " not found");
+                }
+        );
+
+        trainerEntity.setSpecialization(trainingType);
         trainerRepository.save(trainerEntity);
-        log.info("Transaction ID: {}. Successfully created trainer", MDC.get("transactionId"));
-        return Optional.of(new UserCreationResponse(username, password));
+
+        return new UserCreationResponse(username, password);
     }
 
-    public Optional<TrainerGetProfileResponse> getTrainerByUsername(String username) {
-        log.info("Transaction ID: {}. Getting trainer profile", MDC.get("transactionId"));
-        Trainer trainer = trainerRepository.findByUserUsername(username).orElse(null);
-        if (trainer == null) {
-            log.error("Transaction ID: {}. Error getting trainer profile", MDC.get("transactionId"));
-            return Optional.empty();
-        }
+    public TrainerGetProfileResponse getTrainerByUsername(String username) {
+        String transactionId = MDC.get("transactionId");
+
+        Trainer trainer = trainerRepository.findByUserUsername(username).orElseThrow(
+                () -> {
+                    log.error("Transaction ID: {}. Trainer with username: {} not found", transactionId, username);
+                    return new ProfileNotFoundException("Trainer with username: " + username + " not found");
+                }
+        );
+
         TrainerGetProfileResponse trainerResponse = new TrainerGetProfileResponse(trainer);
-        log.info("Transaction ID: {}. Successfully fetched trainer profile", MDC.get("transactionId"));
-        return Optional.of(trainerResponse);
+
+        return trainerResponse;
     }
 
-    public Optional<TrainerUpdateResponse> updateTrainerProfile(String username, TrainerUpdateRequest trainer) {
-        log.info("Transaction ID: {}. Updating trainer profile", MDC.get("transactionId"));
-        Trainer trainerEntity = trainerRepository.findByUserUsername(username)
-                .orElse(null);
-        if (trainerEntity == null) {
-            log.error("Transaction ID: {}. Error updating trainer profile", MDC.get("transactionId"));
-            return Optional.empty();
-        }
+    public TrainerUpdateResponse updateTrainerProfile(String username, TrainerUpdateRequest trainer) {
+        String transactionId = MDC.get("transactionId");
+
+        Trainer trainerEntity = trainerRepository.findByUserUsername(username).orElseThrow(
+                () -> {
+                    log.error("Transaction ID: {}. Trainer with username: {} not found", transactionId, username);
+                    return new ProfileNotFoundException("Trainer with username: " + username + " not found");
+                }
+        );
         trainerEntity.getUser().setFirstName(trainer.getFirstName());
         trainerEntity.getUser().setLastName(trainer.getLastName());
-        trainerEntity.setSpecialization(trainingTypeRepository.getReferenceById(trainer.getTrainingTypeId()));
+
+        TrainingType trainingType = trainingTypeRepository.findById(trainer.getTrainingTypeId()).orElseThrow(
+                () -> {
+                    log.error("Transaction ID: {}. Training type with id: {} not found", transactionId, trainer.getTrainingTypeId());
+                    return new TrainingTypeNotFoundException("Training type with id: " + trainer.getTrainingTypeId() + " not found");
+                }
+        );
+
+        trainerEntity.setSpecialization(trainingType);
         trainerRepository.save(trainerEntity);
-        log.info("Transaction ID: {}. Successfully updated trainer profile", MDC.get("transactionId"));
-        TrainerUpdateResponse trainerUpdateResponse = new TrainerUpdateResponse(trainerEntity);
-        return Optional.of(trainerUpdateResponse);
+
+        return new TrainerUpdateResponse(trainerEntity);
     }
 
     private List<String> getTraineeUsernames(List<Trainer> trainers) {

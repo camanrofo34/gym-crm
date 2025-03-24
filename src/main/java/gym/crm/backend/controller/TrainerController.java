@@ -2,6 +2,9 @@ package gym.crm.backend.controller;
 
 import gym.crm.backend.domain.request.TrainerCreationRequest;
 import gym.crm.backend.domain.request.TrainerUpdateRequest;
+import gym.crm.backend.domain.response.UserCreationResponse;
+import gym.crm.backend.domain.response.trainer.TrainerGetProfileResponse;
+import gym.crm.backend.domain.response.trainer.TrainerUpdateResponse;
 import gym.crm.backend.domain.response.training.TrainingTrainersResponse;
 import gym.crm.backend.service.TrainerService;
 import gym.crm.backend.service.TrainingService;
@@ -12,26 +15,35 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.hateoas.CollectionModel;
+import org.springframework.hateoas.EntityModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 
 @RestController
 @RequestMapping("/trainer")
+@Slf4j
+@Validated
 @Tag( name = "Trainer", description = "Operations related to trainer management")
 public class TrainerController {
 
     private final TrainerService trainerService;
     private final TrainingService trainingService;
     private final UserService userService;
-    private final Logger logger = LoggerFactory.getLogger(TrainerController.class);
 
     @Autowired
     public TrainerController(TrainerService trainerService, TrainingService trainingService, UserService userService) {
@@ -43,7 +55,7 @@ public class TrainerController {
     @PostMapping("/register")
     @Operation(summary = "Register a new trainer", description = "Creates a new trainer in the system.")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Trainer registered successfully"),
+            @ApiResponse(responseCode = "201", description = "Trainer registered successfully"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<?> registerTrainer(@RequestBody @Valid TrainerCreationRequest trainerRequest) {
@@ -52,20 +64,19 @@ public class TrainerController {
 
         MDC.put("transactionId", transactionId);
 
-        logger.info("Transaction ID: {} - Registering trainer", transactionId);
-        try {
-            return trainerService.createTrainer(trainerRequest)
-                    .map(userCreationResponse -> {
-                        logger.info("Transaction ID: {} - Trainer registered successfully: {}", transactionId, userCreationResponse.getUsername());
-                        return ResponseEntity.ok(userCreationResponse);
-                    })
-                    .orElseThrow(() -> new IllegalStateException("Could not create trainer"));
-        } catch (Exception e) {
-            logger.error("Transaction ID: {} - Error: {}", transactionId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Could not create trainer due to an internal error");
-        } finally {
-            MDC.clear();
-        }
+        log.info("Transaction ID: {} - Registering trainer: {}", transactionId, trainerRequest.getFirstName());
+
+        UserCreationResponse userCreationResponse = trainerService.createTrainer(trainerRequest);
+        EntityModel<UserCreationResponse> response = EntityModel.of(
+                userCreationResponse,
+                linkTo(methodOn(TrainerController.class).registerTrainer(trainerRequest)).withSelfRel(),
+                linkTo(methodOn(TrainerController.class).getTrainer(userCreationResponse.getUsername())).withRel("trainer-profile"),
+                linkTo(methodOn(TrainerController.class).getTrainerTrainings(userCreationResponse.getUsername(), null, null, null)).withRel("trainer-trainings")
+        );
+
+        log.info("Transaction ID: {} - Trainer registered successfully: {}", transactionId, userCreationResponse.getUsername());
+        MDC.clear();
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping("profile/{username}")
@@ -81,20 +92,18 @@ public class TrainerController {
 
         MDC.put("transactionId", transactionId);
 
-        logger.info("Transaction ID: {} - Fetching trainer profile for: {}", transactionId, username);
-        try {
-            return trainerService.getTrainerByUsername(username)
-                    .map(ResponseEntity::ok)
-                    .orElseThrow(() -> new EntityNotFoundException("Trainer not found: " + username));
-        } catch (EntityNotFoundException e) {
-            logger.error("Transaction ID: {} - Trainer not found: {}", transactionId, username);
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Trainer not found: " + username);
-        } catch (Exception e) {
-            logger.error("Transaction ID: {} - Error: {}", transactionId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Could not fetch trainer profile due to an internal error");
-        } finally {
-            MDC.clear();
-        }
+        log.info("Transaction ID: {} - Fetching trainer profile: {}", transactionId, username);
+
+        TrainerGetProfileResponse trainerGetProfileResponse = trainerService.getTrainerByUsername(username);
+        EntityModel<TrainerGetProfileResponse> response = EntityModel.of(
+                trainerGetProfileResponse,
+                linkTo(methodOn(TrainerController.class).getTrainer(username)).withSelfRel(),
+                linkTo(methodOn(TrainerController.class).getTrainerTrainings(username, null, null, null)).withRel("trainer-trainings")
+        );
+
+        log.info("Transaction ID: {} - Trainer profile fetched successfully: {}", transactionId, username);
+        MDC.clear();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 
     @PutMapping("profile/{username}")
@@ -109,26 +118,25 @@ public class TrainerController {
 
         MDC.put("transactionId", transactionId);
 
-        logger.info("Transaction ID: {} - Updating trainer: {}", transactionId, username);
-        try {
-            return trainerService.updateTrainerProfile(username, trainerRequest)
-                    .map(ResponseEntity::ok)
-                    .orElseThrow(() -> new EntityNotFoundException("Trainer not found: " + username));
-        } catch (EntityNotFoundException e) {
-            logger.error("Transaction ID: {} - Trainer not found: {}", transactionId, username);
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Trainer not found: " + username);
-        } catch (Exception e) {
-            logger.error("Transaction ID: {} - Error: {}", transactionId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Could not update trainer profile due to an internal error");
-        } finally {
-            MDC.clear();
-        }
+        log.info("Transaction ID: {} - Updating trainer profile: {}", transactionId, username);
+        TrainerUpdateResponse trainerUpdateResponse = trainerService.updateTrainerProfile(username, trainerRequest);
+        EntityModel<TrainerUpdateResponse> response = EntityModel.of(
+                trainerUpdateResponse,
+                linkTo(methodOn(TrainerController.class).updateTrainer(username, trainerRequest)).withSelfRel(),
+                linkTo(methodOn(TrainerController.class).getTrainer(username)).withRel("trainer-profile"),
+                linkTo(methodOn(TrainerController.class).getTrainerTrainings(username, null, null, null)).withRel("trainer-trainings")
+        );
+
+        log.info("Transaction ID: {} - Trainer profile updated successfully: {}", transactionId, username);
+        MDC.clear();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 
     @GetMapping("profile/{username}/trainings")
     @Operation(summary = "Get trainer trainings", description = "Fetches the trainings of a trainer by username.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Trainer trainings fetched successfully"),
+            @ApiResponse(responseCode = "404", description = "Trainer not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<?> getTrainerTrainings(@PathVariable String username,
@@ -139,16 +147,18 @@ public class TrainerController {
 
         MDC.put("transactionId", transactionId);
 
-        logger.info("Transaction ID: {} - Fetching trainings for trainer: {}", transactionId, username);
-        try {
-            List<TrainingTrainersResponse> trainings = trainingService.getTrainerTrainings(username, fromDate, toDate, traineeName);
-            return ResponseEntity.ok(trainings);
-        } catch (Exception e) {
-            logger.error("Transaction ID: {} - Error: {}", transactionId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Could not fetch trainings due to an internal error");
-        } finally {
-            MDC.clear();
-        }
+        log.info("Transaction ID: {} - Fetching trainer trainings: {}", transactionId, username);
+
+        Set<TrainingTrainersResponse> trainingTrainersResponses = trainingService.getTrainerTrainings(username, fromDate, toDate, traineeName);
+        CollectionModel<TrainingTrainersResponse> response = CollectionModel.of(
+                trainingTrainersResponses,
+                linkTo(methodOn(TrainerController.class).getTrainerTrainings(username, fromDate, toDate, traineeName)).withSelfRel(),
+                linkTo(methodOn(TrainerController.class).getTrainer(username)).withRel("trainer-profile")
+        );
+
+        log.info("Transaction ID: {} - Trainer trainings fetched successfully: {}", transactionId, username);
+        MDC.clear();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 
     @PatchMapping("profile/{username}/activate-deactivate")
@@ -163,18 +173,12 @@ public class TrainerController {
 
         MDC.put("transactionId", transactionId);
 
-        logger.info("Transaction ID: {} - Toggling trainer status for: {}", transactionId, username);
-        try {
-            userService.activateDeactivateUser(username, isActive);
-            return ResponseEntity.ok().build();
-        } catch (EntityNotFoundException e) {
-            logger.error("Transaction ID: {} - Trainer not found: {}", transactionId, username);
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Trainer not found: " + username);
-        } catch (Exception e) {
-            logger.error("Transaction ID: {} - Error: {}", transactionId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Could not toggle trainer status due to an internal error");
-        } finally {
-            MDC.clear();
-        }
+        log.info("Transaction ID: {} - Toggling trainer status: {}", transactionId, username);
+
+        userService.activateDeactivateUser(username, isActive);
+
+        log.info("Transaction ID: {} - Trainer toggled status successfully: {}", transactionId, username);
+        MDC.clear();
+        return ResponseEntity.status(HttpStatus.OK).build();
     }
 }

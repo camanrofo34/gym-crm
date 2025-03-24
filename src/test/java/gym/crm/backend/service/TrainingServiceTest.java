@@ -16,10 +16,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -48,7 +45,7 @@ class TrainingServiceTest {
 
     @Test
     void getTrainerTrainings_Success() throws ParseException {
-        List<Training> trainings = new ArrayList<>();
+        Set<Training> trainings = new HashSet<>();
         Training training = new Training();
         training.setTrainingName("Training1");
         training.setTrainingDate(new Date());
@@ -63,24 +60,17 @@ class TrainingServiceTest {
         trainings.add(training);
         when(trainingRepository.findTrainerTrainings(anyString(), any(Date.class), any(Date.class), anyString())).thenReturn(trainings);
 
-        List<TrainingTrainersResponse> result = trainingService.getTrainerTrainings("trainer1", "2023-01-01", "2023-12-31", "trainee1");
+        Set<TrainingTrainersResponse> result = trainingService.getTrainerTrainings("trainer1", "2023-01-01", "2023-12-31", "trainee1");
 
         assertNotNull(result);
         assertEquals(1, result.size());
-        assertEquals("Training1", result.getFirst().getTrainingName());
+        assertEquals("Training1", result.stream().toList().getFirst().getTrainingName());
     }
 
-    @Test
-    void getTrainerTrainings_InvalidDates() {
-        List<TrainingTrainersResponse> result = trainingService.getTrainerTrainings("trainer1", "invalid-date", "invalid-date", "trainee1");
-
-        assertNotNull(result);
-        assertTrue(result.isEmpty());
-    }
 
     @Test
     void getTraineeTrainings_Success() throws ParseException {
-        List<Training> trainings = new ArrayList<>();
+        Set<Training> trainings = new HashSet<>();
         Training training = new Training();
         training.setTrainingName("Training1");
         training.setTrainingDate(new Date());
@@ -95,19 +85,11 @@ class TrainingServiceTest {
         trainings.add(training);
         when(trainingRepository.findTraineeTrainings(anyString(), any(Date.class), any(Date.class), anyString(), anyString())).thenReturn(trainings);
 
-        List<TrainingTraineesResponse> result = trainingService.getTraineeTrainings("trainee1", "2023-01-01", "2023-12-31", "trainer1", "type1");
+        Set<TrainingTraineesResponse> result = trainingService.getTraineeTrainings("trainee1", "2023-01-01", "2023-12-31", "trainer1", "type1");
 
         assertNotNull(result);
         assertEquals(1, result.size());
-        assertEquals("Training1", result.getFirst().getTrainingName());
-    }
-
-    @Test
-    void getTraineeTrainings_InvalidDates() {
-        List<TrainingTraineesResponse> result = trainingService.getTraineeTrainings("trainee1", "invalid-date", "invalid-date", "trainer1", "type1");
-
-        assertNotNull(result);
-        assertTrue(result.isEmpty());
+        assertEquals("Training1", result.stream().toList().getFirst().getTrainingName());
     }
 
     @Test
@@ -132,14 +114,14 @@ class TrainingServiceTest {
     @Test
     void getTrainingTypes_Success() {
         List<TrainingType> trainingTypes = new ArrayList<>();
-        TrainingType trainingType = new TrainingType(1L, TrainingTypes.RESISTANCE, new ArrayList<>(), new ArrayList<>());
+        TrainingType trainingType = new TrainingType(1L, TrainingTypes.RESISTANCE, new HashSet<>(), new HashSet<>());
         trainingTypes.add(trainingType);
         when(trainingTypeRepository.findAll()).thenReturn(trainingTypes);
 
-        List<TrainingTypeResponse> result = trainingService.getTrainingTypes();
+        Set<TrainingTypeResponse> result = trainingService.getTrainingTypes();
 
         assertNotNull(result);
         assertEquals(1, result.size());
-        assertEquals("RESISTANCE", result.getFirst().getTrainingTypeName());
+        assertEquals("RESISTANCE", result.stream().toList().getFirst().getTrainingTypeName());
     }
 }

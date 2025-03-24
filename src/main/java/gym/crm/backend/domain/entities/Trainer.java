@@ -27,7 +27,7 @@ public class Trainer {
 
     @OneToMany(mappedBy = "trainer", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @Setter
-    private List<Training> trainings;
+    private Set<Training> trainings;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "specialization", nullable = false)
@@ -41,5 +41,5 @@ public class Trainer {
             inverseJoinColumns = @JoinColumn(name = "trainee_id")
     )
     @Setter
-    private List<Trainee> trainees;
+    private Set<Trainee> trainees;
 }

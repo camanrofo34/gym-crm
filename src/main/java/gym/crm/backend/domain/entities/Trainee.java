@@ -32,9 +32,9 @@ public class Trainee {
 
     @OneToMany(mappedBy = "trainee", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @Setter
-    private List<Training> trainings;
+    private Set<Training> trainings;
 
     @ManyToMany(mappedBy = "trainees", fetch = FetchType.LAZY)
     @Setter
-    private List<Trainer> trainers;
+    private Set<Trainer> trainers;
 }

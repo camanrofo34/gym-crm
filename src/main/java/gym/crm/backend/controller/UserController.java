@@ -7,8 +7,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -19,11 +18,11 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/user")
-@Tag(name = "User", description =    "Operations related to user management")
+@Slf4j
+@Tag(name = "User", description = "Operations related to user management")
 public class UserController {
 
     private final UserService userService;
-    private final Logger logger = LoggerFactory.getLogger(UserController.class);
 
     @Autowired
     public UserController(UserService userService) {
@@ -40,17 +39,21 @@ public class UserController {
     public ResponseEntity<?> login(@RequestBody @Valid LoginRequest loginRequest) {
         String transactionId = UUID.randomUUID().toString();
         MDC.put("transactionId", transactionId);
-        logger.info("Transaction ID: {} .Login attempt for user: {}", transactionId, loginRequest.getUsername());
-        try {
-            boolean isAuthenticated = userService.login(loginRequest);
-            logger.info("Transaction ID: {} .Login attempt for user: {} - Success: {}", transactionId ,loginRequest.getUsername(), isAuthenticated);
-            return isAuthenticated ? ResponseEntity.ok().build() : ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        } catch (Exception e) {
-            logger.error("Transaction ID: {} .Error during login process for user: {}", transactionId,loginRequest.getUsername(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Login process failed.");
-        } finally {
+
+        log.info("Transaction ID: {} - Login request: {}", transactionId, loginRequest.getUsername());
+
+        boolean isAuthenticated = userService.login(loginRequest);
+
+        if (isAuthenticated) {
+            log.info("Transaction ID: {} - User authenticated successfully", transactionId);
             MDC.clear();
+            return ResponseEntity.status(HttpStatus.OK).build();
+        } else {
+            log.info("Transaction ID: {} - User authentication failed", transactionId);
+            MDC.clear();
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+
     }
 
     @PutMapping("/change-password")
@@ -63,16 +66,13 @@ public class UserController {
     public ResponseEntity<?> changePassword(@RequestBody @Valid LoginRequest loginRequest, @RequestParam String newPassword) {
         String transactionId = UUID.randomUUID().toString();
         MDC.put("transactionId", transactionId);
-        logger.info("Transaction ID: {}, Password change attempt for user: {}", transactionId, loginRequest.getUsername());
-        try {
-            boolean isChanged = userService.changePassword(loginRequest, newPassword);
-            logger.info("Transaction ID: {}, Password change attempt for user: {} - Success: {}", transactionId, loginRequest.getUsername(), isChanged);
-            return isChanged ? ResponseEntity.ok().build() : ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Password change failed.");
-        } catch (Exception e) {
-            logger.error("Error during password change for user: {}", loginRequest.getUsername(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Password change process failed.");
-        } finally {
-            MDC.clear();
-        }
+
+        log.info("Transaction ID: {} - Change password request: {}", transactionId, loginRequest.getUsername());
+
+        userService.changePassword(loginRequest, newPassword);
+
+        log.info("Transaction ID: {} - Password changed successfully", transactionId);
+        MDC.clear();
+        return ResponseEntity.status(HttpStatus.OK).build();
     }
 }

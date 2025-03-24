@@ -9,105 +9,133 @@ import gym.crm.backend.domain.response.trainee.TraineeGetProfileResponse;
 import gym.crm.backend.domain.response.trainee.TraineeUpdateResponse;
 import gym.crm.backend.domain.response.UserCreationResponse;
 import gym.crm.backend.domain.response.trainee.TrainersTraineeResponse;
+import gym.crm.backend.exception.runtimeException.PasswordNotCreatedException;
+import gym.crm.backend.exception.entityNotFoundException.ProfileNotFoundException;
+import gym.crm.backend.exception.runtimeException.UsernameNotCreatedException;
 import gym.crm.backend.repository.TraineeRepository;
 import gym.crm.backend.repository.TrainerRepository;
+import gym.crm.backend.repository.UserRepository;
 import gym.crm.backend.util.UserUtil;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import jakarta.transaction.Transactional;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 @Service
+@Slf4j
 public class TraineeService {
 
     private final TraineeRepository traineeRepository;
     private final TrainerRepository trainerRepository;
     private final UserUtil userUtil;
-
-    private final Logger log = LoggerFactory.getLogger(TraineeService.class);
+    private final Timer trainingTimer;
+    private final UserRepository userRepository;
 
     @Autowired
-    public TraineeService(TraineeRepository traineeRepository, TrainerRepository trainerRepository, UserUtil userUtil) {
+    public TraineeService(TraineeRepository traineeRepository,
+                          TrainerRepository trainerRepository,
+                          UserUtil userUtil,
+                          MeterRegistry registry, UserRepository userRepository) {
         this.traineeRepository = traineeRepository;
         this.trainerRepository = trainerRepository;
         this.userUtil = userUtil;
+        this.trainingTimer = registry.timer("training_processing_time");
+        this.userRepository = userRepository;
     }
 
-    public Optional<UserCreationResponse> createTrainee(TraineeCreationRequest trainee) {
+    @Transactional
+    public UserCreationResponse createTrainee(TraineeCreationRequest trainee) {
+        long startTime = System.nanoTime();
         List<String> usernames = getTraineeUsernames(traineeRepository.findAll());
-        log.info("Transaction ID: {}. Creating trainee", MDC.get("transactionId"));
+        String transactionId = MDC.get("transactionId");
+
         String username = userUtil.generateUsername(trainee.getFirstName(), trainee.getLastName(), usernames);
-        if (username.isBlank()) {
-            log.error("Transaction ID: {}. Error creting username", MDC.get("transactionId"));
-            throw new RuntimeException("Failed to generate username");
+        if (username == null || username.isEmpty()) {
+            log.error("Transaction ID: {}. Failed to generate username", transactionId);
+            throw new UsernameNotCreatedException("Failed to generate username");
         }
+
         String password = userUtil.generatePassword();
-        if (password == null) {
-            log.error("Transaction ID: {}. Error creating password", MDC.get("transactionId"));
-            throw new RuntimeException("Failed to generate password");
+        if (password == null || password.isEmpty()) {
+            log.error("Transaction ID: {}. Failed to generate password", transactionId);
+            throw new PasswordNotCreatedException("Failed to generate password");
         }
+
         Trainee traineeEntity = getTrainee(trainee, username, password);
         traineeRepository.save(traineeEntity);
-        log.info("Transaction ID: {}. Created trainee", MDC.get("transactionId"));
-        return Optional.of(new UserCreationResponse(username, password));
+        trainingTimer.record(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
+        return new UserCreationResponse(username, password);
     }
 
-    public Optional<TraineeGetProfileResponse> getTraineeByUsername(String username) {
-        log.info("Transaction ID: {}. Getting trainee profile", MDC.get("transactionId"));
-        Trainee trainee = traineeRepository.findByUserUsername(username).orElse(null);
-        if (trainee == null) {
-            log.error("Transaction ID: {}. Error getting trainee", MDC.get("transactionId"));
-            return Optional.empty();
-        }
-        TraineeGetProfileResponse traineeCreationResponse = new TraineeGetProfileResponse(trainee);
-        return Optional.of(traineeCreationResponse);
+    public TraineeGetProfileResponse getTraineeByUsername(String username) {
+        String transactionId = MDC.get("transactionId");
+
+        Trainee trainee = traineeRepository.findByUserUsername(username).orElseThrow(() ->
+        {
+            log.error("Transaction ID: {}. Trainee with username: {} not found", transactionId, username);
+            return new ProfileNotFoundException("Trainee with username: " + username + " not found");
+        });
+        return new TraineeGetProfileResponse(trainee);
     }
 
-    public Optional<TraineeUpdateResponse> updateTrainee(String username, TraineeUpdateRequest trainee) {
-        log.info("Transaction ID: {}. Updating trainee", MDC.get("transactionId"));
-        Trainee traineeEntity = traineeRepository.findByUserUsername(username)
-                .orElse(null);
-        if (traineeEntity == null) {
-            log.error("Transaction ID: {}. Error updating trainee", MDC.get("transactionId"));
-            return Optional.empty();
-        }
+    public TraineeUpdateResponse updateTrainee(String username, TraineeUpdateRequest trainee) {
+        String transactionId = MDC.get("transactionId");
+
+        Trainee traineeEntity = traineeRepository.findByUserUsername(username).orElseThrow(() ->
+        {
+            log.error("Transaction ID: {}. Trainee with username: {} not found", transactionId, username);
+            return new ProfileNotFoundException("Trainee with username: " + username + " not found");
+        });
+
         traineeEntity.getUser().setFirstName(trainee.getFirstName());
         traineeEntity.getUser().setLastName(trainee.getLastName());
+
         if (trainee.getDateOfBirth() != null) {
             traineeEntity.setDateOfBirth(trainee.getDateOfBirth());
         }
         if (!trainee.getAddress().isEmpty()) {
             traineeEntity.setAddress(trainee.getAddress());
         }
+
         traineeRepository.save(traineeEntity);
-        log.info("Transaction ID: {}. Updated trainee", MDC.get("transactionId"));
-        TraineeUpdateResponse traineeUpdateResponse = new  TraineeUpdateResponse(traineeEntity);
-        return Optional.of(traineeUpdateResponse);
+        return new  TraineeUpdateResponse(traineeEntity);
     }
 
     @Transactional
     public void deleteTrainee(String username) {
+        String transactionId = MDC.get("transactionId");
+
         Trainee trainee = traineeRepository.findByUserUsername(username)
-                .orElseThrow(() -> new RuntimeException("Trainee not found with username: " + username));
-        if (trainee.getTrainers() != null) {
-            for (Trainer trainer : trainee.getTrainers()) {
-                trainer.getTrainees().remove(trainee);
-            }
+                .orElseThrow(() -> {
+                    log.error("Transaction ID: {}. Trainee with username: {} not found", transactionId, username);
+                    return new ProfileNotFoundException("Trainee with username: " + username + " not found");
+                });
+
+        for (Trainer trainer : trainee.getTrainers()) {
+            trainer.getTrainees().remove(trainee);
         }
-        log.info("Transaction ID: {}. Deleting trainee", MDC.get("transactionId"));
+
         traineeRepository.delete(trainee);
     }
 
-    public List<TrainersTraineeResponse> getTrainersNotInTrainersTraineeListByTraineeUserUsername(String traineeUsername) {
-        log.info("Transaction ID: {}. Getting trainers not in trainee list", MDC.get("transactionId"));
-        List<TrainersTraineeResponse> trainers = new ArrayList<>();
-        List<Trainer> trainersFound =traineeRepository.findTrainersNotInTrainersTraineeListByTraineeUserUsername(traineeUsername);
+    public Set<TrainersTraineeResponse> getTrainersNotInTrainersTraineeListByTraineeUserUsername(String traineeUsername) {
+        String transactionId = MDC.get("transactionId");
+
+        Trainee trainee = traineeRepository.findByUserUsername(traineeUsername)
+                .orElseThrow(() -> {
+                    log.error("Transaction ID: {}. Trainee with username: {} not found", transactionId, traineeUsername);
+                    return new ProfileNotFoundException("Trainee with username: " + traineeUsername + " not found");
+                });
+
+        Set<TrainersTraineeResponse> trainers = new HashSet<>();
+
+        Set<Trainer> trainersFound = traineeRepository.findTrainersNotInTrainersTraineeListByTraineeUserUsername(traineeUsername);
         trainersFound.forEach(trainer -> {
             TrainersTraineeResponse trainersTraineeResponse = new TrainersTraineeResponse(
                     trainer.getUser().getUsername(),
@@ -117,24 +145,30 @@ public class TraineeService {
             );
             trainers.add(trainersTraineeResponse);
         });
+
         return trainers;
     }
 
-    public List<TrainersTraineeResponse> updateTrainersTraineeList(String username, List<String> trainerUsername) {
-        log.info("Transaction ID: {}. Updating trainers trainee list", MDC.get("transactionId"));
-        Trainee trainee = traineeRepository.findByUserUsername(username).orElse(null);
-        if (trainee == null) {
-            log.error("Transaction ID: {}. Error updating trainers trainee list", MDC.get("transactionId"));
-            return List.of();
-        }
+    public Set<TrainersTraineeResponse> updateTrainersTraineeList(String username, List<String> trainerUsername) {
+
+        String transactionId = MDC.get("transactionId");
+
+
+        Trainee trainee = traineeRepository.findByUserUsername(username).orElseThrow(() ->{
+                    log.error("Transaction ID: {}. Trainee with username: {} not found", transactionId, username);
+                    return new ProfileNotFoundException("Trainee with username: " + username + " not found");
+                }
+        );
+
         List<Trainer> trainers = trainerRepository.findAll();
-        List<TrainersTraineeResponse> trainersTraineeResponses = new ArrayList<>();
-        List<Trainer> newTrainers = new ArrayList<>();
+        Set<TrainersTraineeResponse> trainersTraineeResponses = new HashSet<>();
+        Set<Trainer> newTrainers = new HashSet<>();
+
         for (String trainer : trainerUsername) {
             Trainer trainerEntity = trainers.stream().filter(t -> t.getUser().getUsername().equals(trainer)).findFirst().orElse(null);
             if (trainerEntity != null) {
                 newTrainers.add(trainerEntity);
-                List<Trainee> trainees = trainerEntity.getTrainees();
+                Set<Trainee> trainees = trainerEntity.getTrainees();
                 trainees.add(trainee);
                 trainerEntity.setTrainees(trainees);
                 trainerRepository.save(trainerEntity);
@@ -149,7 +183,6 @@ public class TraineeService {
         }
         trainee.setTrainers(newTrainers);
         traineeRepository.save(trainee);
-        log.info("Transaction ID: {}. Updated trainers trainee list", MDC.get("transactionId"));
         return trainersTraineeResponses;
     }
 
@@ -169,6 +202,7 @@ public class TraineeService {
         user.setFirstName(trainee.getFirstName());
         user.setLastName(trainee.getLastName());
         user.setIsActive(true);
+        userRepository.save(user);
         Trainee traineeEntity = new Trainee();
         traineeEntity.setUser(user);
         if (trainee.getDateOfBirth() != null) {

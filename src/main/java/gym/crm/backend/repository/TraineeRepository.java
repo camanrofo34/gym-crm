@@ -5,8 +5,8 @@ import gym.crm.backend.domain.entities.Trainer;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
-import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public interface TraineeRepository extends JpaRepository<Trainee, Long> {
 
@@ -14,5 +14,5 @@ public interface TraineeRepository extends JpaRepository<Trainee, Long> {
 
     @Query("SELECT t FROM Trainer t WHERE t NOT IN " +
             "(SELECT tr FROM Trainer tr JOIN tr.trainees trt WHERE trt.user.username = :traineeUsername)")
-    List<Trainer> findTrainersNotInTrainersTraineeListByTraineeUserUsername(String traineeUsername);
+    Set<Trainer> findTrainersNotInTrainersTraineeListByTraineeUserUsername(String traineeUsername);
 }

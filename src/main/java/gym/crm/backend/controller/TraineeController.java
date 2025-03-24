@@ -2,6 +2,9 @@ package gym.crm.backend.controller;
 
 import gym.crm.backend.domain.request.TraineeCreationRequest;
 import gym.crm.backend.domain.request.TraineeUpdateRequest;
+import gym.crm.backend.domain.response.UserCreationResponse;
+import gym.crm.backend.domain.response.trainee.TraineeGetProfileResponse;
+import gym.crm.backend.domain.response.trainee.TraineeUpdateResponse;
 import gym.crm.backend.domain.response.trainee.TrainersTraineeResponse;
 import gym.crm.backend.domain.response.training.TrainingTraineesResponse;
 import gym.crm.backend.service.TraineeService;
@@ -11,29 +14,35 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.hateoas.CollectionModel;
+import org.springframework.hateoas.EntityModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 
 @RestController
 @RequestMapping("/trainee")
+@Slf4j
+@Validated
+
 @Tag(name = "Trainee", description = "Operations related to trainee management")
 public class TraineeController {
 
     private final TraineeService traineeService;
     private final TrainingService trainingService;
     private final UserService userService;
-    private final Logger logger = LoggerFactory.getLogger(TraineeController.class.getName());
 
     @Autowired
     public TraineeController(TraineeService traineeService, TrainingService trainingService, UserService userService) {
@@ -45,7 +54,7 @@ public class TraineeController {
     @PostMapping("/register")
     @Operation(summary = "Register trainee", description = "Creates a new trainee user.")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Trainee created successfully"),
+            @ApiResponse(responseCode = "201", description = "Trainee created successfully"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<?> registerTrainee(@Valid @RequestBody TraineeCreationRequest traineeCreationRequest) {
@@ -53,21 +62,21 @@ public class TraineeController {
 
         MDC.put("transactionId", transactionId);
 
-        logger.info("Transaction ID: {} - Received request to register trainee: {}", transactionId, traineeCreationRequest);
+        log.info("Transaction ID: {} - Received request to register trainee: {}", transactionId, traineeCreationRequest);
 
-        try {
-            return traineeService.createTrainee(traineeCreationRequest)
-                    .map(trainee -> {
-                        logger.info("Transaction ID: {} - Trainee registered successfully: {}", transactionId, trainee.getUsername());
-                        return ResponseEntity.ok(trainee);
-                    })
-                    .orElseThrow(() -> new IllegalStateException("Could not create trainee"));
-        } catch (Exception e) {
-            logger.error("Transaction ID: {} - Error registering trainee: {}", transactionId, e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Could not create trainee due to an internal error");
-        } finally {
-            MDC.clear();
-        }
+        UserCreationResponse userCreationResponse = traineeService.createTrainee(traineeCreationRequest);
+        EntityModel<UserCreationResponse> response = EntityModel.of(
+                userCreationResponse,
+                linkTo(methodOn(TraineeController.class).registerTrainee(traineeCreationRequest)).withSelfRel(),
+                linkTo(methodOn(TraineeController.class).getTrainee(userCreationResponse.getUsername())).withRel("trainee-profile"),
+                linkTo(methodOn(TraineeController.class).deleteTrainee(userCreationResponse.getUsername())).withRel("delete-profile"),
+                linkTo(methodOn(TraineeController.class).getTrainingsForTrainee(userCreationResponse.getUsername(), null, null, null, null)).withRel("trainings"),
+                linkTo(methodOn(TraineeController.class).getTrainersNotAssignedToTrainee(userCreationResponse.getUsername())).withRel("trainers-not-assigned")
+        );
+
+        log.info("Transaction ID: {} - Trainee created successfully: {}", transactionId, userCreationResponse);
+        MDC.clear();
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
 
@@ -84,21 +93,21 @@ public class TraineeController {
 
         MDC.put("transactionId", transactionId);
 
-        logger.info("Transaction ID: {} - Fetching trainee profile for: {}", transactionId, username);
+        log.info("Transaction ID: {} - Fetching trainee: {}", transactionId, username);
 
-        try{
-            return traineeService.getTraineeByUsername(username)
-                    .map(traineeGetProfileResponse -> {
-                        logger.info("Transaction ID: {} - Trainee profile fetched successfully: {}", transactionId, traineeGetProfileResponse);
-                        return ResponseEntity.ok(traineeGetProfileResponse);
-                    })
-                    .orElseThrow(() -> new EntityNotFoundException("Trainee not found: " + username));
-        } catch (Exception e) {
-            logger.error("Transaction ID: {} - Error: {}", transactionId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Could not fetch trainee profile due an internal error");
-        }finally {
-            MDC.clear();
-        }
+        TraineeGetProfileResponse traineeGetProfileResponse = traineeService.getTraineeByUsername(username);
+
+        EntityModel<TraineeGetProfileResponse> response = EntityModel.of(
+                traineeGetProfileResponse,
+                linkTo(methodOn(TraineeController.class).getTrainee(username)).withSelfRel(),
+                linkTo(methodOn(TraineeController.class).deleteTrainee(username)).withRel("delete-profile"),
+                linkTo(methodOn(TraineeController.class).getTrainingsForTrainee(username, null, null, null, null)).withRel("trainings"),
+                linkTo(methodOn(TraineeController.class).getTrainersNotAssignedToTrainee(username)).withRel("trainers-not-assigned")
+        );
+
+        log.info("Transaction ID: {} - Trainee fetched successfully: {}", transactionId, traineeGetProfileResponse);
+        MDC.clear();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 
     @PutMapping("/profile/{username}")
@@ -114,22 +123,22 @@ public class TraineeController {
 
         MDC.put("transactionId", transactionId);
 
-        logger.info("Transaction ID: {} - Updating trainee: {}", transactionId, username);
+        log.info("Transaction ID: {} - Updating trainee: {}", transactionId, traineeUpdateRequest);
 
-        try{
-            return traineeService.updateTrainee(username, traineeUpdateRequest)
-                    .map(traineeUpdateResponse -> {
-                        logger.info("Transaction ID: {} - Trainee updated successfully: {}", transactionId, traineeUpdateResponse);
-                        return ResponseEntity.ok(traineeUpdateResponse);
-                    })
-                    .orElseThrow(() -> new EntityNotFoundException("Trainee not found: " + username));
+        TraineeUpdateResponse traineeUpdateResponse = traineeService.updateTrainee(username, traineeUpdateRequest);
 
-        } catch (Exception e) {
-            logger.error("Transaction ID: {} - Error: {}", transactionId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Could not update trainee profile due an internal error");
-        } finally {
-            MDC.clear();
-        }
+        EntityModel<TraineeUpdateResponse> response = EntityModel.of(
+                traineeUpdateResponse,
+                linkTo(methodOn(TraineeController.class).updateTrainee(username, traineeUpdateRequest)).withSelfRel(),
+                linkTo(methodOn(TraineeController.class).getTrainee(username)).withRel("trainee-profile"),
+                linkTo(methodOn(TraineeController.class).deleteTrainee(username)).withRel("delete-profile"),
+                linkTo(methodOn(TraineeController.class).getTrainingsForTrainee(username, null, null, null, null)).withRel("trainings"),
+                linkTo(methodOn(TraineeController.class).getTrainersNotAssignedToTrainee(username)).withRel("trainers-not-assigned")
+        );
+
+        log.info("Transaction ID: {} - Trainee updated successfully: {}", transactionId, traineeUpdateResponse);
+        MDC.clear();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 
     @DeleteMapping("/profile/{username}")
@@ -145,20 +154,13 @@ public class TraineeController {
 
         MDC.put("transactionId", transactionId);
 
-        logger.info("Transaction ID: {} - Deleting trainee: {}", transactionId, username);
-        try {
-            traineeService.deleteTrainee(username);
-            logger.info("Transaction ID: {} - Trainee deleted successfully: {}", transactionId, username);
-            return ResponseEntity.noContent().build();
-        }catch (EntityNotFoundException e) {
-            logger.error("Transaction ID: {} - Trainee not found: {}", transactionId, username);
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Trainee not found: " + username);
-        } catch (Exception e) {
-            logger.error("Transaction ID: {} - Error: {}", transactionId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Could not delete trainee due an internal error");
-        }finally {
-            MDC.clear();
-        }
+        log.info("Transaction ID: {} - Deleting trainee: {}", transactionId, username);
+
+        traineeService.deleteTrainee(username);
+
+        log.info("Transaction ID: {} - Trainee deleted successfully: {}", transactionId, username);
+        MDC.clear();
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
     @GetMapping("/profile/{username}/not-assigned-trainers")
@@ -173,23 +175,18 @@ public class TraineeController {
 
         MDC.put("transactionId", transactionId);
 
-        logger.info("Transaction ID: {} - Searching Trainers Not Assigned to: {}", transactionId, username);
-        try {
-            List<TrainersTraineeResponse> trainers = traineeService.getTrainersNotInTrainersTraineeListByTraineeUserUsername(username);
-            logger.info("Transaction ID: {} - Trainers fetched successfully: {}", transactionId, trainers);
-            if (trainers.isEmpty()) {
-                return ResponseEntity.ok(Collections.emptyList());
-            }
-            return ResponseEntity.ok(trainers);
-        } catch (EntityNotFoundException e) {
-            logger.error("Transaction ID: {} - Trainee not found: {}", transactionId, username);
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Trainee not found: " + username);
-        } catch (Exception e) {
-            logger.error("Transaction ID: {} - Error: {}", transactionId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Could not fetch trainers due to an internal error");
-        } finally {
-            MDC.clear();
-        }
+        log.info("Transaction ID: {} - Fetching trainers not assigned to trainee: {}", transactionId, username);
+
+        Set<TrainersTraineeResponse> trainers = traineeService.getTrainersNotInTrainersTraineeListByTraineeUserUsername(username);
+        CollectionModel<TrainersTraineeResponse> responses = CollectionModel.of(
+                trainers,
+                linkTo(methodOn(TraineeController.class).getTrainersNotAssignedToTrainee(username)).withSelfRel(),
+                linkTo(methodOn(TraineeController.class).getTrainee(username)).withRel("trainee-profile")
+        );
+
+        log.info("Transaction ID: {} - Trainers fetched successfully: {}", transactionId, trainers);
+        MDC.clear();
+        return ResponseEntity.status(HttpStatus.OK).body(responses);
     }
 
 
@@ -197,6 +194,7 @@ public class TraineeController {
     @Operation(summary = "Assign trainers to trainee", description = "Assigns trainers to a trainee user.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Trainers assigned successfully"),
+            @ApiResponse(responseCode = "404", description = "Trainee/Trainer not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<?> assignTrainersToTrainee(@PathVariable String username, @Valid @RequestBody List<String> trainerUsernames) {
@@ -204,27 +202,29 @@ public class TraineeController {
 
         MDC.put("transactionId", transactionId);
 
-        logger.info("Transaction ID: {} - Assigning trainers to: {}", transactionId, username);
-        try {
-            return ResponseEntity.ok(traineeService.updateTrainersTraineeList(username, trainerUsernames));
-        }catch (EntityNotFoundException e) {
-            logger.error("Transaction ID: {} - Trainee not found: {}", transactionId, username);
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Trainee not found: " + username);
-        }catch (Exception e){
-            logger.error("Transaction ID: {} - Error: {}", transactionId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Could not assign trainers due an internal error");
-        }finally {
-            MDC.clear();
-        }
+        log.info("Transaction ID: {} - Assigning trainers to trainee: {}", transactionId, username);
+
+        Set<TrainersTraineeResponse> trainers = traineeService.updateTrainersTraineeList(username, trainerUsernames);
+        CollectionModel<TrainersTraineeResponse> responses = CollectionModel.of(
+                trainers,
+                linkTo(methodOn(TraineeController.class).assignTrainersToTrainee(username, trainerUsernames)).withSelfRel(),
+                linkTo(methodOn(TraineeController.class).getTrainee(username)).withRel("trainee-profile")
+        );
+
+        log.info("Transaction ID: {} - Trainers assigned successfully: {}", transactionId, trainers);
+        MDC.clear();
+        return ResponseEntity.status(HttpStatus.OK).body(responses);
     }
 
     @GetMapping("/profile/{username}/trainings")
     @Operation(summary = "Fetch trainings for trainee", description = "Returns a list of trainings for a trainee user.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Trainings fetched successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid request for the Date written"),
+            @ApiResponse(responseCode = "404", description = "Trainee not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<List<TrainingTraineesResponse>> getTrainingsForTrainee(
+    public ResponseEntity<?> getTrainingsForTrainee(
             @PathVariable String username,
             @RequestParam(required = false) String periodFrom,
             @RequestParam(required = false) String periodTo,
@@ -234,25 +234,25 @@ public class TraineeController {
 
         MDC.put("transactionId", transactionId);
 
-        logger.info("Transaction ID: {} - Fetching trainings for trainee: {}", transactionId, username);
-        try {
-            return ResponseEntity.ok(trainingService.getTraineeTrainings(username, periodFrom, periodTo, trainerName, trainingType));
-        }catch (EntityNotFoundException e) {
-            logger.error("Transaction ID: {} - Trainee not found: {}", transactionId, username);
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.emptyList());
-        }catch (Exception e){
-            logger.error("Transaction ID: {} - Error: {}", transactionId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Collections.emptyList());
-        }finally {
-            MDC.clear();
-        }
+        log.info("Transaction ID: {} - Fetching trainings for trainee: {}", transactionId, username);
 
+        Set<TrainingTraineesResponse> trainings = trainingService.getTraineeTrainings(username, periodFrom, periodTo, trainerName, trainingType);
+        CollectionModel<TrainingTraineesResponse> responses = CollectionModel.of(
+                trainings,
+                linkTo(methodOn(TraineeController.class).getTrainingsForTrainee(username, periodFrom, periodTo, trainerName, trainingType)).withSelfRel(),
+                linkTo(methodOn(TraineeController.class).getTrainee(username)).withRel("trainee-profile")
+        );
+
+        log.info("Transaction ID: {} - Trainings fetched successfully: {}", transactionId, trainings);
+        MDC.clear();
+        return ResponseEntity.status(HttpStatus.OK).body(responses);
     }
 
     @PatchMapping("/profile/{username}/activate-deactivate")
     @Operation(summary = "Activate or deactivate trainee", description = "Activates or deactivates a trainee user.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Trainee status toggled successfully"),
+            @ApiResponse(responseCode = "404", description = "Trainee not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<?> activateDeactivateTrainee(@PathVariable String username, @RequestParam boolean isActive) {
@@ -260,19 +260,13 @@ public class TraineeController {
 
         MDC.put("transactionId", transactionId);
 
-        logger.info("Transaction ID: {} - Toggling trainee status for: {}", transactionId, username);
-        try {
-            userService.activateDeactivateUser(username, isActive);
-            return ResponseEntity.ok().build();
-        }catch (EntityNotFoundException e) {
-            logger.error("Transaction ID: {} - Trainee not found: {}", transactionId, username);
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Trainee not found: " + username);
-        }catch (Exception e){
-            logger.error("Transaction ID: {} - Error: {}", transactionId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Could not toggle trainee status due an internal error");
-        } finally {
-            MDC.clear();
-        }
+        log.info("Transaction ID: {} - Toggling trainer status: {}", transactionId, username);
+
+        userService.activateDeactivateUser(username, isActive);
+
+        log.info("Transaction ID: {} - Trainee toggled status successfully: {}", transactionId, username);
+        MDC.clear();
+        return ResponseEntity.status(HttpStatus.OK).build();
     }
 }
 

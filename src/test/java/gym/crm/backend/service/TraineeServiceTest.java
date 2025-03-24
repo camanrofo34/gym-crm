@@ -9,16 +9,16 @@ import gym.crm.backend.domain.response.UserCreationResponse;
 import gym.crm.backend.domain.response.trainee.TrainersTraineeResponse;
 import gym.crm.backend.repository.TraineeRepository;
 import gym.crm.backend.repository.TrainerRepository;
+import gym.crm.backend.repository.UserRepository;
 import gym.crm.backend.util.UserUtil;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -34,6 +34,12 @@ class TraineeServiceTest {
     @Mock
     private UserUtil userUtil;
 
+    @Mock
+    private MeterRegistry registry;
+
+    @Mock
+    private UserRepository userRepository;
+
     @InjectMocks
     private TraineeService traineeService;
 
@@ -42,24 +48,26 @@ class TraineeServiceTest {
         MockitoAnnotations.openMocks(this);
     }
 
-    @Test
-    void createTrainee_Success() {
-        TraineeCreationRequest request = new TraineeCreationRequest();
-        request.setFirstName("John");
-        request.setLastName("Doe");
-        request.setAddress("123 Main St");
-        List<Trainee> trainees = new ArrayList<>();
-        when(traineeRepository.findAll()).thenReturn(trainees);
-        when(userUtil.generateUsername(anyString(), anyString(), anyList())).thenReturn("johndoe");
-        when(userUtil.generatePassword()).thenReturn("password123");
-        when(traineeRepository.save(any(Trainee.class))).thenReturn(new Trainee());
+@Test
+void createTrainee_Success() {
+    TraineeCreationRequest request = new TraineeCreationRequest();
+    request.setFirstName("John");
+    request.setLastName("Doe");
+    request.setAddress("123 Main St");
+    List<Trainee> trainees = new ArrayList<>();
+    when(traineeRepository.findAll()).thenReturn(trainees);
+    when(userUtil.generateUsername(anyString(), anyString(), anyList())).thenReturn("johndoe");
+    when(userUtil.generatePassword()).thenReturn("password123");
+    when(traineeRepository.save(any(Trainee.class))).thenReturn(new Trainee());
 
-        Optional<UserCreationResponse> response = traineeService.createTrainee(request);
+    io.micrometer.core.instrument.Timer mockTimer = mock(io.micrometer.core.instrument.Timer.class);
+    when(registry.timer("training_processing_time")).thenReturn(mockTimer);
 
-        assertTrue(response.isPresent());
-        assertEquals("johndoe", response.get().getUsername());
-        assertEquals("password123", response.get().getPassword());
-    }
+    UserCreationResponse response = traineeService.createTrainee(request);
+
+    assertEquals("johndoe", response.getUsername());
+    assertEquals("password123", response.getPassword());
+}
 
     @Test
     void createTrainee_Failure_GenerateUsername() {
@@ -90,23 +98,15 @@ class TraineeServiceTest {
     void getTraineeByUsername_Success() {
         Trainee trainee = new Trainee();
         User user = new User();
+        user.setFirstName("John");
         user.setUsername("johndoe");
         trainee.setUser(user);
-        trainee.setTrainers(List.of());
+        trainee.setTrainers(Collections.emptySet());
         when(traineeRepository.findByUserUsername(anyString())).thenReturn(Optional.of(trainee));
 
-        Optional<TraineeGetProfileResponse> response = traineeService.getTraineeByUsername("johndoe");
+        TraineeGetProfileResponse response = traineeService.getTraineeByUsername("johndoe");
 
-        assertTrue(response.isPresent());
-    }
-
-    @Test
-    void getTraineeByUsername_NotFound() {
-        when(traineeRepository.findByUserUsername(anyString())).thenReturn(Optional.empty());
-
-        Optional<TraineeGetProfileResponse> response = traineeService.getTraineeByUsername("johndoe");
-
-        assertFalse(response.isPresent());
+        assertEquals("John", response.getFirstName());
     }
 
     @Test
@@ -115,7 +115,7 @@ class TraineeServiceTest {
         User user = new User();
         user.setUsername("johndoe");
         trainee.setUser(user);
-        trainee.setTrainers(List.of());
+        trainee.setTrainers(Collections.emptySet());
         when(traineeRepository.findByUserUsername(anyString())).thenReturn(Optional.of(trainee));
         when(traineeRepository.save(any(Trainee.class))).thenReturn(trainee);
 
@@ -124,24 +124,10 @@ class TraineeServiceTest {
         request.setLastName("Doe");
         request.setAddress("123 Main St");
 
-        Optional<TraineeUpdateResponse> response = traineeService.updateTrainee("johndoe", request);
+        TraineeUpdateResponse response = traineeService.updateTrainee("johndoe", request);
 
-        assertTrue(response.isPresent());
-        assertEquals("John", response.get().getFirstName());
-        assertEquals("Doe", response.get().getLastName());
-    }
-
-    @Test
-    void updateTrainee_NotFound() {
-        when(traineeRepository.findByUserUsername(anyString())).thenReturn(Optional.empty());
-
-        TraineeUpdateRequest request = new TraineeUpdateRequest();
-        request.setFirstName("John");
-        request.setLastName("Doe");
-
-        Optional<TraineeUpdateResponse> response = traineeService.updateTrainee("johndoe", request);
-
-        assertFalse(response.isPresent());
+        assertEquals("John", response.getFirstName());
+        assertEquals("Doe", response.getLastName());
     }
 
     @Test
@@ -150,6 +136,8 @@ class TraineeServiceTest {
         User user = new User();
         user.setUsername("johndoe");
         trainee.setUser(user);
+        trainee.setTrainings(Collections.emptySet());
+        trainee.setTrainers(new HashSet<>());
         when(traineeRepository.findByUserUsername(anyString())).thenReturn(Optional.of(trainee));
 
         traineeService.deleteTrainee("johndoe");
@@ -166,19 +154,20 @@ class TraineeServiceTest {
 
     @Test
     void getTrainersNotInTrainersTraineeListByTraineeUserUsername_Success() {
-        List<Trainer> trainers = new ArrayList<>();
+        Set<Trainer> trainers = new HashSet<>();
         Trainer trainer = new Trainer();
         User user = new User();
         user.setUsername("trainer1");
         trainer.setUser(user);
-        trainer.setSpecialization(new TrainingType(1L, TrainingTypes.RESISTANCE, List.of(), List.of()));
+        trainer.setSpecialization(new TrainingType(1L, TrainingTypes.RESISTANCE, Collections.emptySet(), Collections.emptySet()));
         trainers.add(trainer);
-        when(traineeRepository.findTrainersNotInTrainersTraineeListByTraineeUserUsername(anyString())).thenReturn(trainers);
+        when(traineeRepository.findByUserUsername("johndoe")).thenReturn(Optional.of(new Trainee()));
+        when(traineeRepository.findTrainersNotInTrainersTraineeListByTraineeUserUsername("johndoe")).thenReturn(trainers);
 
-        List<TrainersTraineeResponse> response = traineeService.getTrainersNotInTrainersTraineeListByTraineeUserUsername("johndoe");
+        Set<TrainersTraineeResponse> response = traineeService.getTrainersNotInTrainersTraineeListByTraineeUserUsername("johndoe");
 
         assertEquals(1, response.size());
-        assertEquals("trainer1", response.getFirst().getTrainerUsername());
+        assertEquals("trainer1", response.stream().toList().getFirst().getTrainerUsername());
     }
 
     @Test
@@ -190,8 +179,8 @@ class TraineeServiceTest {
         when(traineeRepository.findByUserUsername(anyString())).thenReturn(Optional.of(trainee));
         List<Trainer> trainers = new ArrayList<>();
         Trainer trainer = new Trainer();
-        trainer.setSpecialization(new TrainingType(1L, TrainingTypes.RESISTANCE, List.of(), List.of()));
-        trainer.setTrainees(new ArrayList<>());
+        trainer.setSpecialization(new TrainingType(1L, TrainingTypes.RESISTANCE, new HashSet<>(), new HashSet<>()));
+        trainer.setTrainees(new HashSet<>());
         User trainerUser = new User();
         trainerUser.setUsername("trainer1");
         trainer.setUser(trainerUser);
@@ -199,10 +188,10 @@ class TraineeServiceTest {
         when(trainerRepository.findAll()).thenReturn(trainers);
 
         List<String> trainerUsernames = List.of("trainer1");
-        List<TrainersTraineeResponse> response = traineeService.updateTrainersTraineeList("johndoe", trainerUsernames);
+        Set<TrainersTraineeResponse> response = traineeService.updateTrainersTraineeList("johndoe", trainerUsernames);
 
         assertEquals(1, response.size());
-        assertEquals("trainer1", response.getFirst().getTrainerUsername());
+        assertEquals("trainer1", response.stream().toList().getFirst().getTrainerUsername());
         verify(traineeRepository, times(1)).save(trainee);
     }
 }

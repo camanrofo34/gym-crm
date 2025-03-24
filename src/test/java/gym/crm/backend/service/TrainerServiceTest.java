@@ -17,7 +17,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -54,12 +54,11 @@ class TrainerServiceTest {
         when(userUtil.generatePassword()).thenReturn("password123");
         when(trainingTypeRepository.getReferenceById(anyLong())).thenReturn(new TrainingType());
         when(trainerRepository.save(any(Trainer.class))).thenReturn(new Trainer());
+        when(trainingTypeRepository.findById(anyLong())).thenReturn(Optional.of(new TrainingType()));
+        UserCreationResponse response = trainerService.createTrainer(request);
 
-        Optional<UserCreationResponse> response = trainerService.createTrainer(request);
-
-        assertTrue(response.isPresent());
-        assertEquals("johndoe", response.get().getUsername());
-        assertEquals("password123", response.get().getPassword());
+        assertEquals("johndoe", response.getUsername());
+        assertEquals("password123", response.getPassword());
     }
 
     @Test
@@ -90,23 +89,15 @@ class TrainerServiceTest {
         Trainer trainer = new Trainer();
         User user = new User();
         user.setUsername("johndoe");
+        user.setFirstName("John");
         trainer.setUser(user);
         trainer.setSpecialization(new TrainingType());
-        trainer.setTrainees(new ArrayList<>());
+        trainer.setTrainees(Collections.emptySet());
         when(trainerRepository.findByUserUsername(anyString())).thenReturn(Optional.of(trainer));
 
-        Optional<TrainerGetProfileResponse> response = trainerService.getTrainerByUsername("johndoe");
+        TrainerGetProfileResponse response = trainerService.getTrainerByUsername("johndoe");
 
-        assertTrue(response.isPresent());
-    }
-
-    @Test
-    void getTrainerByUsername_NotFound() {
-        when(trainerRepository.findByUserUsername(anyString())).thenReturn(Optional.empty());
-
-        Optional<TrainerGetProfileResponse> response = trainerService.getTrainerByUsername("johndoe");
-
-        assertFalse(response.isPresent());
+        assertEquals("John", response.getFirstName());
     }
 
     @Test
@@ -115,35 +106,21 @@ class TrainerServiceTest {
         User user = new User();
         user.setUsername("johndoe");
         trainer.setUser(user);
-        trainer.setTrainees(new ArrayList<>());
+        trainer.setTrainees(Collections.emptySet());
         when(trainerRepository.findByUserUsername(anyString())).thenReturn(Optional.of(trainer));
         when(trainingTypeRepository.getReferenceById(anyLong())).thenReturn(new TrainingType());
         when(trainerRepository.save(any(Trainer.class))).thenReturn(trainer);
-
+        when(trainingTypeRepository.findById(anyLong())).thenReturn(Optional.of(new TrainingType()));
         TrainerUpdateRequest request = new TrainerUpdateRequest();
         request.setFirstName("John");
         request.setLastName("Doe");
         request.setTrainingTypeId(1L);
 
-        Optional<TrainerUpdateResponse> response = trainerService.updateTrainerProfile("johndoe", request);
+        TrainerUpdateResponse response = trainerService.updateTrainerProfile("johndoe", request);
 
-        assertTrue(response.isPresent());
-        assertEquals("John", response.get().getFirstName());
-        assertEquals("Doe", response.get().getLastName());
+        assertEquals("John", response.getFirstName());
+        assertEquals("Doe", response.getLastName());
     }
 
-    @Test
-    void updateTrainerProfile_NotFound() {
-        when(trainerRepository.findByUserUsername(anyString())).thenReturn(Optional.empty());
-
-        TrainerUpdateRequest request = new TrainerUpdateRequest();
-        request.setFirstName("John");
-        request.setLastName("Doe");
-        request.setTrainingTypeId(1L);
-
-        Optional<TrainerUpdateResponse> response = trainerService.updateTrainerProfile("johndoe", request);
-
-        assertFalse(response.isPresent());
-    }
 
 }

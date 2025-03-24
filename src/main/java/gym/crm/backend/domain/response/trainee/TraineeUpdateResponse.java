@@ -6,9 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 
 @AllArgsConstructor
 @Getter
@@ -20,7 +18,7 @@ public class TraineeUpdateResponse {
     private Date dateOfBirth;
     private String address;
     private boolean isActive;
-    private List<TrainersTraineeResponse> trainers;
+    private Set<TrainersTraineeResponse> trainers;
 
     public TraineeUpdateResponse(Trainee trainee) {
         this.username = trainee.getUser().getUsername();
@@ -29,11 +27,11 @@ public class TraineeUpdateResponse {
         this.dateOfBirth = trainee.getDateOfBirth();
         this.address = trainee.getAddress();
         this.isActive = trainee.getUser().getIsActive();
-        this.trainers = new ArrayList<>();
+        this.trainers = new HashSet<>();
         setTrainers(trainee.getTrainers());
     }
 
-    public void setTrainers(List<Trainer> trainers){
+    public void setTrainers(Set<Trainer> trainers){
         trainers.forEach(trainer -> {
             TrainersTraineeResponse trainersTraineeResponse = new TrainersTraineeResponse(
                     trainer.getUser().getUsername(),

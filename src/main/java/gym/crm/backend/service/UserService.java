@@ -1,11 +1,9 @@
 package gym.crm.backend.service;
 
-import gym.crm.backend.domain.entities.Trainer;
 import gym.crm.backend.domain.entities.User;
 import gym.crm.backend.domain.request.LoginRequest;
 import gym.crm.backend.repository.UserRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -13,10 +11,10 @@ import org.springframework.stereotype.Service;
 import java.util.Optional;
 
 @Service
+@Slf4j
 public class UserService {
 
     private final UserRepository userRepository;
-    private final Logger logger = LoggerFactory.getLogger(UserService.class);
 
     @Autowired
     public UserService(UserRepository userRepository) {
@@ -24,32 +22,41 @@ public class UserService {
     }
 
     public boolean login(LoginRequest loginRequest) {
-        logger.info("Transaction Id: {}. Login attempt for user: {}", MDC.get("transactionId"),loginRequest.getUsername());
-        Optional<User> user = userRepository.findByUsername(loginRequest.getUsername());
-        return user.map(value -> value.getPassword().equals(loginRequest.getPassword())).orElse(false);
+        String transactionId = MDC.get("transactionId");
+        log.info("Transaction Id: {}. Login attempt for user: {}", transactionId,loginRequest.getUsername());
+
+        User user = userRepository.findByUsername(loginRequest.getUsername()).orElseThrow(() ->
+        {
+            log.error("Transaction Id: {}. User not found: {}", transactionId, loginRequest.getUsername());
+            return new RuntimeException("User with username: " + loginRequest.getUsername() + " not found");
+        });
+
+        return user.getPassword().equals(loginRequest.getPassword());
     }
 
-    public boolean changePassword(LoginRequest loginRequest, String newPassword) {
-        try {
-            logger.info("Transaction Id: {}. Changing password for user: {}", MDC.get("transactionId"),loginRequest.getUsername());
-            Optional<User> user = userRepository.findByUsername(loginRequest.getUsername());
-            user.ifPresent(value -> {
-                value.setPassword(newPassword);
-                userRepository.save(value);
-            });
-            return true;
-        }catch (Exception e){
-            logger.error("Transaction Id: {}. Error during password change for user: {}", MDC.get("transactionId"),loginRequest.getUsername(), e);
-            return false;
-        }
+    public void changePassword(LoginRequest loginRequest, String newPassword) {
+        String transactionId = MDC.get("transactionId");
+        log.info("Transaction Id: {}. Changing password for user: {}", transactionId, loginRequest.getUsername());
+        User user = userRepository.findByUsername(loginRequest.getUsername()).orElseThrow(() ->
+        {
+            log.error("Transaction Id: {}. User not found: {}", transactionId, loginRequest.getUsername());
+            return new RuntimeException("User with username: " + loginRequest.getUsername() + " not found");
+        });
+        user.setPassword(newPassword);
+        userRepository.save(user);
     }
 
     public void activateDeactivateUser(String username, boolean isActive) {
-        Optional<User> user = userRepository.findByUsername(username);
-        logger.info("Transaction ID: {}. Toggling trainer status", MDC.get("transactionId"));
-        user.ifPresent(t -> {
-            t.setIsActive(!isActive);
-            userRepository.save(t);
+        String transactionId = MDC.get("transactionId");
+        log.info("Transaction ID: {}. Toggling trainer status", transactionId);
+
+        User user = userRepository.findByUsername(username).orElseThrow(() ->
+        {
+            log.error("Transaction Id: {}. User not found: {}", transactionId, username);
+            return new RuntimeException("User with username: " + username + " not found");
         });
+
+        user.setIsActive(!isActive);
+        userRepository.save(user);
     }
 }

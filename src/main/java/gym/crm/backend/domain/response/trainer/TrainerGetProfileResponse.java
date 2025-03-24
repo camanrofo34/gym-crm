@@ -6,8 +6,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 @Getter
 @Setter
@@ -17,18 +17,18 @@ public class TrainerGetProfileResponse {
     private String lastName;
     private Long specialization;
     private boolean isActive;
-    private List<TraineesTrainerList> trainees;
+    private Set<TraineesTrainerList> trainees;
 
     public TrainerGetProfileResponse(Trainer trainer) {
         this.firstName = trainer.getUser().getFirstName();
         this.lastName = trainer.getUser().getLastName();
         this.specialization = trainer.getSpecialization().getId();
         this.isActive = trainer.getUser().getIsActive();
-        this.trainees = new ArrayList<>();
+        this.trainees = new HashSet<>();
         setTrainees(trainer.getTrainees());
     }
 
-    private void setTrainees(List<Trainee> trainees) {
+    private void setTrainees(Set<Trainee> trainees) {
         trainees.forEach(trainer -> {
             TraineesTrainerList traineesTrainerList = new TraineesTrainerList(
                     trainer.getUser().getUsername(),

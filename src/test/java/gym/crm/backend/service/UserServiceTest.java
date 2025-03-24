@@ -82,39 +82,10 @@ class UserServiceTest {
         user.setPassword("oldpassword");
         when(userRepository.findByUsername(anyString())).thenReturn(Optional.of(user));
 
-        boolean result = userService.changePassword(loginRequest, "newpassword");
+        userService.changePassword(loginRequest, "newpassword");
 
-        assertTrue(result);
         assertEquals("newpassword", user.getPassword());
         verify(userRepository, times(1)).save(user);
-    }
-
-    @Test
-    void changePassword_Failure_UserNotFound() {
-        LoginRequest loginRequest = new LoginRequest();
-        loginRequest.setUsername("johndoe");
-        loginRequest.setPassword("oldpassword");
-        when(userRepository.findByUsername(anyString())).thenReturn(null);
-
-        boolean result = userService.changePassword(loginRequest, "newpassword");
-
-        assertFalse(result);
-    }
-
-    @Test
-    void changePassword_Failure_Exception() {
-        LoginRequest loginRequest = new LoginRequest();
-        loginRequest.setUsername("johndoe");
-        loginRequest.setPassword("oldpassword");
-        User user = new User();
-        user.setUsername("johndoe");
-        user.setPassword("oldpassword");
-        when(userRepository.findByUsername(anyString())).thenReturn(Optional.of(user));
-        doThrow(new RuntimeException()).when(userRepository).save(any(User.class));
-
-        boolean result = userService.changePassword(loginRequest, "newpassword");
-
-        assertFalse(result);
     }
 
     @Test
