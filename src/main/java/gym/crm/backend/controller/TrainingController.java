@@ -11,16 +11,19 @@ import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.hateoas.CollectionModel;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.data.web.PagedResourcesAssembler;
+import org.springframework.hateoas.EntityModel;
+import org.springframework.hateoas.PagedModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Set;
 import java.util.UUID;
 
-import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
-import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 
 @RestController
 @RequestMapping("/training")
@@ -29,6 +32,9 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 public class TrainingController {
 
     private final TrainingService trainingService;
+
+    @Autowired
+    private PagedResourcesAssembler<TrainingTypeResponse> pagedResourcesAssemblerTrainingType;
 
     @Autowired
     public TrainingController(TrainingService trainingService) {
@@ -60,18 +66,17 @@ public class TrainingController {
             @ApiResponse(responseCode = "200", description = "Training types fetched successfully"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<?> getTrainingTypes() {
+    public ResponseEntity<PagedModel<EntityModel<TrainingTypeResponse>>> getTrainingTypes(
+            @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.DESC) Pageable pageable
+    ) {
         String transactionId = UUID.randomUUID().toString();
         MDC.put("transactionId", transactionId);
 
         log.info("Transaction ID: {} - Fetching training types", transactionId);
 
-        Set<TrainingTypeResponse> trainingTypes = trainingService.getTrainingTypes();
+        Page<TrainingTypeResponse> trainingTypes = trainingService.getTrainingTypes(pageable);
 
-        CollectionModel<TrainingTypeResponse> responses = CollectionModel.of(
-                trainingTypes,
-                linkTo(methodOn(TrainingController.class).getTrainingTypes()).withSelfRel()
-        );
+        PagedModel<EntityModel<TrainingTypeResponse>> responses = pagedResourcesAssemblerTrainingType.toModel(trainingTypes);
 
         log.info("Transaction ID: {} - Training types fetched successfully", transactionId);
         MDC.clear();

@@ -15,6 +15,7 @@ import gym.crm.backend.exception.entityNotFoundException.TrainingTypeNotFoundExc
 import gym.crm.backend.exception.runtimeException.UsernameNotCreatedException;
 import gym.crm.backend.repository.TrainerRepository;
 import gym.crm.backend.repository.TrainingTypeRepository;
+import gym.crm.backend.repository.UserRepository;
 import gym.crm.backend.util.UserUtil;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
@@ -30,12 +31,14 @@ public class TrainerService {
     private final TrainerRepository trainerRepository;
     private final TrainingTypeRepository trainingTypeRepository;
     private final UserUtil userUtil;
+    private final UserRepository userRepository;
 
     @Autowired
-    public TrainerService(TrainerRepository trainerRepository, TrainingTypeRepository trainingTypeRepository ,UserUtil userUtil) {
+    public TrainerService(TrainerRepository trainerRepository, TrainingTypeRepository trainingTypeRepository , UserUtil userUtil, UserRepository userRepository) {
         this.trainerRepository = trainerRepository;
         this.trainingTypeRepository = trainingTypeRepository;
         this.userUtil = userUtil;
+        this.userRepository = userRepository;
     }
 
     @Transactional
@@ -63,6 +66,7 @@ public class TrainerService {
         user.setIsActive(true);
         user.setFirstName(trainer.getFirstName());
         user.setLastName(trainer.getLastName());
+        userRepository.save(user);
         Trainer trainerEntity = new Trainer();
         trainerEntity.setUser(user);
 
@@ -89,9 +93,7 @@ public class TrainerService {
                 }
         );
 
-        TrainerGetProfileResponse trainerResponse = new TrainerGetProfileResponse(trainer);
-
-        return trainerResponse;
+        return new TrainerGetProfileResponse(trainer);
     }
 
     public TrainerUpdateResponse updateTrainerProfile(String username, TrainerUpdateRequest trainer) {

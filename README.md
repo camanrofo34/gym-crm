@@ -65,7 +65,6 @@
 
 <h2>📝 Future Improvements</h2>
 <ul>
-  <li>Implementation of REST endpoints to call the methods.</li>
   <li>Implementation of a front-end interface (web or mobile).</li>
   <li>Advanced reporting for trainer and trainee activity analytics.</li>
   <li>Notification system for scheduled trainings.</li>

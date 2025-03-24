@@ -18,11 +18,16 @@ import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.data.web.PagedResourcesAssembler;
 import org.springframework.hateoas.CollectionModel;
 import org.springframework.hateoas.EntityModel;
+import org.springframework.hateoas.PagedModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -35,7 +40,6 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 @RestController
 @RequestMapping("/trainee")
 @Slf4j
-@Validated
 
 @Tag(name = "Trainee", description = "Operations related to trainee management")
 public class TraineeController {
@@ -45,7 +49,16 @@ public class TraineeController {
     private final UserService userService;
 
     @Autowired
-    public TraineeController(TraineeService traineeService, TrainingService trainingService, UserService userService) {
+    private PagedResourcesAssembler<TrainingTraineesResponse> pagedResourcesAssemblerTraining;
+
+    @Autowired
+    private PagedResourcesAssembler<TrainersTraineeResponse> pagedResourcesAssemblerTrainers;
+
+
+    @Autowired
+    public TraineeController(TraineeService traineeService,
+                             TrainingService trainingService,
+                             UserService userService) {
         this.traineeService = traineeService;
         this.trainingService = trainingService;
         this.userService = userService;
@@ -57,7 +70,7 @@ public class TraineeController {
             @ApiResponse(responseCode = "201", description = "Trainee created successfully"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<?> registerTrainee(@Valid @RequestBody TraineeCreationRequest traineeCreationRequest) {
+    public ResponseEntity<EntityModel<UserCreationResponse>> registerTrainee(@Valid @RequestBody TraineeCreationRequest traineeCreationRequest) {
         String transactionId = UUID.randomUUID().toString();
 
         MDC.put("transactionId", transactionId);
@@ -70,8 +83,8 @@ public class TraineeController {
                 linkTo(methodOn(TraineeController.class).registerTrainee(traineeCreationRequest)).withSelfRel(),
                 linkTo(methodOn(TraineeController.class).getTrainee(userCreationResponse.getUsername())).withRel("trainee-profile"),
                 linkTo(methodOn(TraineeController.class).deleteTrainee(userCreationResponse.getUsername())).withRel("delete-profile"),
-                linkTo(methodOn(TraineeController.class).getTrainingsForTrainee(userCreationResponse.getUsername(), null, null, null, null)).withRel("trainings"),
-                linkTo(methodOn(TraineeController.class).getTrainersNotAssignedToTrainee(userCreationResponse.getUsername())).withRel("trainers-not-assigned")
+                linkTo(methodOn(TraineeController.class).getTrainingsForTrainee(userCreationResponse.getUsername(), null, null, null, null, Pageable.unpaged())).withRel("trainings"),
+                linkTo(methodOn(TraineeController.class).getTrainersNotAssignedToTrainee(userCreationResponse.getUsername(), Pageable.unpaged())).withRel("trainers-not-assigned")
         );
 
         log.info("Transaction ID: {} - Trainee created successfully: {}", transactionId, userCreationResponse);
@@ -87,7 +100,7 @@ public class TraineeController {
             @ApiResponse(responseCode = "404", description = "Trainee not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<?> getTrainee(@PathVariable String username) {
+    public ResponseEntity<EntityModel<TraineeGetProfileResponse>> getTrainee(@PathVariable String username) {
 
         String transactionId = UUID.randomUUID().toString();
 
@@ -101,8 +114,8 @@ public class TraineeController {
                 traineeGetProfileResponse,
                 linkTo(methodOn(TraineeController.class).getTrainee(username)).withSelfRel(),
                 linkTo(methodOn(TraineeController.class).deleteTrainee(username)).withRel("delete-profile"),
-                linkTo(methodOn(TraineeController.class).getTrainingsForTrainee(username, null, null, null, null)).withRel("trainings"),
-                linkTo(methodOn(TraineeController.class).getTrainersNotAssignedToTrainee(username)).withRel("trainers-not-assigned")
+                linkTo(methodOn(TraineeController.class).getTrainingsForTrainee(username, null, null, null, null, Pageable.unpaged())).withRel("trainings"),
+                linkTo(methodOn(TraineeController.class).getTrainersNotAssignedToTrainee(username, Pageable.unpaged())).withRel("trainers-not-assigned")
         );
 
         log.info("Transaction ID: {} - Trainee fetched successfully: {}", transactionId, traineeGetProfileResponse);
@@ -117,7 +130,7 @@ public class TraineeController {
             @ApiResponse(responseCode = "404", description = "Trainee not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<?> updateTrainee(@PathVariable String username, @Valid @RequestBody TraineeUpdateRequest traineeUpdateRequest) {
+    public ResponseEntity<EntityModel<TraineeUpdateResponse>> updateTrainee(@PathVariable String username, @Valid @RequestBody TraineeUpdateRequest traineeUpdateRequest) {
 
         String transactionId = UUID.randomUUID().toString();
 
@@ -132,8 +145,8 @@ public class TraineeController {
                 linkTo(methodOn(TraineeController.class).updateTrainee(username, traineeUpdateRequest)).withSelfRel(),
                 linkTo(methodOn(TraineeController.class).getTrainee(username)).withRel("trainee-profile"),
                 linkTo(methodOn(TraineeController.class).deleteTrainee(username)).withRel("delete-profile"),
-                linkTo(methodOn(TraineeController.class).getTrainingsForTrainee(username, null, null, null, null)).withRel("trainings"),
-                linkTo(methodOn(TraineeController.class).getTrainersNotAssignedToTrainee(username)).withRel("trainers-not-assigned")
+                linkTo(methodOn(TraineeController.class).getTrainingsForTrainee(username, null, null, null, null, Pageable.unpaged())).withRel("trainings"),
+                linkTo(methodOn(TraineeController.class).getTrainersNotAssignedToTrainee(username, Pageable.unpaged())).withRel("trainers-not-assigned")
         );
 
         log.info("Transaction ID: {} - Trainee updated successfully: {}", transactionId, traineeUpdateResponse);
@@ -148,7 +161,7 @@ public class TraineeController {
             @ApiResponse(responseCode = "404", description = "Trainee not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<?> deleteTrainee(@PathVariable String username) {
+    public ResponseEntity<Void> deleteTrainee(@PathVariable String username) {
 
         String transactionId = UUID.randomUUID().toString();
 
@@ -170,19 +183,17 @@ public class TraineeController {
             @ApiResponse(responseCode = "404", description = "Trainee not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<?> getTrainersNotAssignedToTrainee(@PathVariable String username) {
+    public ResponseEntity<PagedModel<EntityModel<TrainersTraineeResponse>>> getTrainersNotAssignedToTrainee(@PathVariable String username,
+                                                               @PageableDefault(size = 10, sort = "trainerId", direction = Sort.Direction.DESC) Pageable pageable) {
         String transactionId = UUID.randomUUID().toString();
 
         MDC.put("transactionId", transactionId);
 
         log.info("Transaction ID: {} - Fetching trainers not assigned to trainee: {}", transactionId, username);
 
-        Set<TrainersTraineeResponse> trainers = traineeService.getTrainersNotInTrainersTraineeListByTraineeUserUsername(username);
-        CollectionModel<TrainersTraineeResponse> responses = CollectionModel.of(
-                trainers,
-                linkTo(methodOn(TraineeController.class).getTrainersNotAssignedToTrainee(username)).withSelfRel(),
-                linkTo(methodOn(TraineeController.class).getTrainee(username)).withRel("trainee-profile")
-        );
+        Page<TrainersTraineeResponse> trainers = traineeService.getTrainersNotInTrainersTraineeListByTraineeUserUsername(username, pageable);
+
+        PagedModel<EntityModel<TrainersTraineeResponse>> responses = pagedResourcesAssemblerTrainers.toModel(trainers);
 
         log.info("Transaction ID: {} - Trainers fetched successfully: {}", transactionId, trainers);
         MDC.clear();
@@ -197,7 +208,7 @@ public class TraineeController {
             @ApiResponse(responseCode = "404", description = "Trainee/Trainer not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<?> assignTrainersToTrainee(@PathVariable String username, @Valid @RequestBody List<String> trainerUsernames) {
+    public ResponseEntity<CollectionModel<TrainersTraineeResponse>> assignTrainersToTrainee(@PathVariable String username, @Valid @RequestBody List<String> trainerUsernames) {
         String transactionId = UUID.randomUUID().toString();
 
         MDC.put("transactionId", transactionId);
@@ -211,42 +222,41 @@ public class TraineeController {
                 linkTo(methodOn(TraineeController.class).getTrainee(username)).withRel("trainee-profile")
         );
 
+
         log.info("Transaction ID: {} - Trainers assigned successfully: {}", transactionId, trainers);
         MDC.clear();
         return ResponseEntity.status(HttpStatus.OK).body(responses);
     }
 
     @GetMapping("/profile/{username}/trainings")
-    @Operation(summary = "Fetch trainings for trainee", description = "Returns a list of trainings for a trainee user.")
+    @Operation(summary = "Fetch trainings for trainee", description = "Returns a paginated list of trainings for a trainee user.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Trainings fetched successfully"),
             @ApiResponse(responseCode = "400", description = "Invalid request for the Date written"),
             @ApiResponse(responseCode = "404", description = "Trainee not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<?> getTrainingsForTrainee(
+    public ResponseEntity<PagedModel<EntityModel<TrainingTraineesResponse>>> getTrainingsForTrainee(
             @PathVariable String username,
             @RequestParam(required = false) String periodFrom,
             @RequestParam(required = false) String periodTo,
             @RequestParam(required = false) String trainerName,
-            @RequestParam(required = false) String trainingType) {
+            @RequestParam(required = false) String trainingType,
+            @PageableDefault(size = 10, sort = "trainingDate", direction = Sort.Direction.DESC) Pageable pageable) {
+
         String transactionId = UUID.randomUUID().toString();
-
         MDC.put("transactionId", transactionId);
-
         log.info("Transaction ID: {} - Fetching trainings for trainee: {}", transactionId, username);
 
-        Set<TrainingTraineesResponse> trainings = trainingService.getTraineeTrainings(username, periodFrom, periodTo, trainerName, trainingType);
-        CollectionModel<TrainingTraineesResponse> responses = CollectionModel.of(
-                trainings,
-                linkTo(methodOn(TraineeController.class).getTrainingsForTrainee(username, periodFrom, periodTo, trainerName, trainingType)).withSelfRel(),
-                linkTo(methodOn(TraineeController.class).getTrainee(username)).withRel("trainee-profile")
-        );
+        Page<TrainingTraineesResponse> trainingsPage = trainingService.getTraineeTrainings(username, periodFrom, periodTo, trainerName, trainingType, pageable);
 
-        log.info("Transaction ID: {} - Trainings fetched successfully: {}", transactionId, trainings);
+        PagedModel<EntityModel<TrainingTraineesResponse>> response = pagedResourcesAssemblerTraining.toModel(trainingsPage);
+
+        log.info("Transaction ID: {} - Trainings fetched successfully: {}", transactionId, trainingsPage.getContent());
         MDC.clear();
-        return ResponseEntity.status(HttpStatus.OK).body(responses);
+        return ResponseEntity.status(HttpStatus.OK).body(response);
     }
+
 
     @PatchMapping("/profile/{username}/activate-deactivate")
     @Operation(summary = "Activate or deactivate trainee", description = "Activates or deactivates a trainee user.")
@@ -255,7 +265,7 @@ public class TraineeController {
             @ApiResponse(responseCode = "404", description = "Trainee not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<?> activateDeactivateTrainee(@PathVariable String username, @RequestParam boolean isActive) {
+    public ResponseEntity<Void> activateDeactivateTrainee(@PathVariable String username, @RequestParam boolean isActive) {
         String transactionId = UUID.randomUUID().toString();
 
         MDC.put("transactionId", transactionId);

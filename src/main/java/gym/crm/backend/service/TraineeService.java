@@ -22,6 +22,8 @@ import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -124,7 +126,7 @@ public class TraineeService {
         traineeRepository.delete(trainee);
     }
 
-    public Set<TrainersTraineeResponse> getTrainersNotInTrainersTraineeListByTraineeUserUsername(String traineeUsername) {
+    public Page<TrainersTraineeResponse> getTrainersNotInTrainersTraineeListByTraineeUserUsername(String traineeUsername, Pageable pageable) {
         String transactionId = MDC.get("transactionId");
 
         Trainee trainee = traineeRepository.findByUserUsername(traineeUsername)
@@ -133,20 +135,16 @@ public class TraineeService {
                     return new ProfileNotFoundException("Trainee with username: " + traineeUsername + " not found");
                 });
 
-        Set<TrainersTraineeResponse> trainers = new HashSet<>();
+        Page<Trainer> trainersFound = traineeRepository.findTrainersNotInTrainersTraineeListByTraineeUserUsername(traineeUsername, pageable);
 
-        Set<Trainer> trainersFound = traineeRepository.findTrainersNotInTrainersTraineeListByTraineeUserUsername(traineeUsername);
-        trainersFound.forEach(trainer -> {
-            TrainersTraineeResponse trainersTraineeResponse = new TrainersTraineeResponse(
-                    trainer.getUser().getUsername(),
-                    trainer.getUser().getFirstName(),
-                    trainer.getUser().getLastName(),
-                    trainer.getSpecialization().getId()
-            );
-            trainers.add(trainersTraineeResponse);
-        });
-
-        return trainers;
+        return trainersFound.map(
+                trainer -> new TrainersTraineeResponse(
+                        trainer.getUser().getUsername(),
+                        trainer.getUser().getFirstName(),
+                        trainer.getUser().getLastName(),
+                        trainer.getSpecialization().getId()
+                )
+        );
     }
 
     public Set<TrainersTraineeResponse> updateTrainersTraineeList(String username, List<String> trainerUsername) {

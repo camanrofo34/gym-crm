@@ -36,7 +36,7 @@ public class UserController {
             @ApiResponse(responseCode = "401", description = "User authentication failed"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<?> login(@RequestBody @Valid LoginRequest loginRequest) {
+    public ResponseEntity<Void> login(@RequestBody @Valid LoginRequest loginRequest) {
         String transactionId = UUID.randomUUID().toString();
         MDC.put("transactionId", transactionId);
 
@@ -63,7 +63,7 @@ public class UserController {
             @ApiResponse(responseCode = "400", description = "Password change failed"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<?> changePassword(@RequestBody @Valid LoginRequest loginRequest, @RequestParam String newPassword) {
+    public ResponseEntity<Void> changePassword(@RequestBody @Valid LoginRequest loginRequest, @RequestParam String newPassword) {
         String transactionId = UUID.randomUUID().toString();
         MDC.put("transactionId", transactionId);
 

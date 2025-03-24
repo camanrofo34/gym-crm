@@ -2,6 +2,7 @@ package gym.crm.backend.domain.request;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -24,10 +25,10 @@ public class TrainingCreationRequest {
     @NotBlank(message = "Training name cannot be blank")
     private String trainingName;
 
-    @NotBlank(message = "Training date cannot be blank")
+    @NotNull(message = "Training date cannot be blank")
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     private Date trainingDate;
 
-    @NotBlank(message = "Training duration cannot be blank")
+    @NotNull(message = "Training duration cannot be blank")
     private Double trainingDuration;
 }

@@ -5,6 +5,7 @@ import gym.crm.backend.domain.request.TrainerUpdateRequest;
 import gym.crm.backend.domain.response.UserCreationResponse;
 import gym.crm.backend.domain.response.trainer.TrainerGetProfileResponse;
 import gym.crm.backend.domain.response.trainer.TrainerUpdateResponse;
+import gym.crm.backend.domain.response.training.TrainingTraineesResponse;
 import gym.crm.backend.domain.response.training.TrainingTrainersResponse;
 import gym.crm.backend.service.TrainerService;
 import gym.crm.backend.service.TrainingService;
@@ -20,8 +21,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.data.web.PagedResourcesAssembler;
 import org.springframework.hateoas.CollectionModel;
 import org.springframework.hateoas.EntityModel;
+import org.springframework.hateoas.PagedModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -46,6 +53,9 @@ public class TrainerController {
     private final UserService userService;
 
     @Autowired
+    private PagedResourcesAssembler<TrainingTrainersResponse> pagedResourcesAssemblerTraining;
+
+    @Autowired
     public TrainerController(TrainerService trainerService, TrainingService trainingService, UserService userService) {
         this.trainerService = trainerService;
         this.trainingService = trainingService;
@@ -58,7 +68,7 @@ public class TrainerController {
             @ApiResponse(responseCode = "201", description = "Trainer registered successfully"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<?> registerTrainer(@RequestBody @Valid TrainerCreationRequest trainerRequest) {
+    public ResponseEntity<EntityModel<UserCreationResponse>> registerTrainer(@RequestBody @Valid TrainerCreationRequest trainerRequest) {
 
         String transactionId = UUID.randomUUID().toString();
 
@@ -71,7 +81,7 @@ public class TrainerController {
                 userCreationResponse,
                 linkTo(methodOn(TrainerController.class).registerTrainer(trainerRequest)).withSelfRel(),
                 linkTo(methodOn(TrainerController.class).getTrainer(userCreationResponse.getUsername())).withRel("trainer-profile"),
-                linkTo(methodOn(TrainerController.class).getTrainerTrainings(userCreationResponse.getUsername(), null, null, null)).withRel("trainer-trainings")
+                linkTo(methodOn(TrainerController.class).getTrainerTrainings(userCreationResponse.getUsername(), null, null, null, Pageable.unpaged())).withRel("trainer-trainings")
         );
 
         log.info("Transaction ID: {} - Trainer registered successfully: {}", transactionId, userCreationResponse.getUsername());
@@ -86,7 +96,7 @@ public class TrainerController {
             @ApiResponse(responseCode = "404", description = "Trainer not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<?> getTrainer(@PathVariable String username) {
+    public ResponseEntity<EntityModel<TrainerGetProfileResponse>> getTrainer(@PathVariable String username) {
 
         String transactionId = UUID.randomUUID().toString();
 
@@ -98,7 +108,7 @@ public class TrainerController {
         EntityModel<TrainerGetProfileResponse> response = EntityModel.of(
                 trainerGetProfileResponse,
                 linkTo(methodOn(TrainerController.class).getTrainer(username)).withSelfRel(),
-                linkTo(methodOn(TrainerController.class).getTrainerTrainings(username, null, null, null)).withRel("trainer-trainings")
+                linkTo(methodOn(TrainerController.class).getTrainerTrainings(username, null, null, null, Pageable.unpaged())).withRel("trainer-trainings")
         );
 
         log.info("Transaction ID: {} - Trainer profile fetched successfully: {}", transactionId, username);
@@ -113,7 +123,7 @@ public class TrainerController {
             @ApiResponse(responseCode = "404", description = "Trainer not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<?> updateTrainer(@PathVariable String username, @Valid @RequestBody TrainerUpdateRequest trainerRequest) {
+    public ResponseEntity<EntityModel<TrainerUpdateResponse>> updateTrainer(@PathVariable String username, @Valid @RequestBody TrainerUpdateRequest trainerRequest) {
         String transactionId = UUID.randomUUID().toString();
 
         MDC.put("transactionId", transactionId);
@@ -124,7 +134,7 @@ public class TrainerController {
                 trainerUpdateResponse,
                 linkTo(methodOn(TrainerController.class).updateTrainer(username, trainerRequest)).withSelfRel(),
                 linkTo(methodOn(TrainerController.class).getTrainer(username)).withRel("trainer-profile"),
-                linkTo(methodOn(TrainerController.class).getTrainerTrainings(username, null, null, null)).withRel("trainer-trainings")
+                linkTo(methodOn(TrainerController.class).getTrainerTrainings(username, null, null, null, Pageable.unpaged())).withRel("trainer-trainings")
         );
 
         log.info("Transaction ID: {} - Trainer profile updated successfully: {}", transactionId, username);
@@ -139,22 +149,20 @@ public class TrainerController {
             @ApiResponse(responseCode = "404", description = "Trainer not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<?> getTrainerTrainings(@PathVariable String username,
-                                                 @RequestParam(required = false) String fromDate,
-                                                 @RequestParam(required = false) String toDate,
-                                                 @RequestParam(required = false) String traineeName) {
+    public ResponseEntity<PagedModel<EntityModel<TrainingTrainersResponse>>> getTrainerTrainings(@PathVariable String username,
+                                                          @RequestParam(required = false) String fromDate,
+                                                          @RequestParam(required = false) String toDate,
+                                                          @RequestParam(required = false) String traineeName,
+                                                          @PageableDefault(size = 10, sort = "trainingDate", direction = Sort.Direction.DESC) Pageable pageable) {
         String transactionId = UUID.randomUUID().toString();
 
         MDC.put("transactionId", transactionId);
 
         log.info("Transaction ID: {} - Fetching trainer trainings: {}", transactionId, username);
 
-        Set<TrainingTrainersResponse> trainingTrainersResponses = trainingService.getTrainerTrainings(username, fromDate, toDate, traineeName);
-        CollectionModel<TrainingTrainersResponse> response = CollectionModel.of(
-                trainingTrainersResponses,
-                linkTo(methodOn(TrainerController.class).getTrainerTrainings(username, fromDate, toDate, traineeName)).withSelfRel(),
-                linkTo(methodOn(TrainerController.class).getTrainer(username)).withRel("trainer-profile")
-        );
+        Page<TrainingTrainersResponse> trainingTrainersResponses = trainingService.getTrainerTrainings(username, fromDate, toDate, traineeName, pageable);
+
+        PagedModel<EntityModel<TrainingTrainersResponse>> response = pagedResourcesAssemblerTraining.toModel(trainingTrainersResponses);
 
         log.info("Transaction ID: {} - Trainer trainings fetched successfully: {}", transactionId, username);
         MDC.clear();
@@ -168,7 +176,7 @@ public class TrainerController {
             @ApiResponse(responseCode = "404", description = "Trainer not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<?> activateDeactivateTrainer(@PathVariable String username, @RequestParam boolean isActive) {
+    public ResponseEntity<Void> activateDeactivateTrainer(@PathVariable String username, @RequestParam boolean isActive) {
         String transactionId = UUID.randomUUID().toString();
 
         MDC.put("transactionId", transactionId);

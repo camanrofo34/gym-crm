@@ -1,8 +1,6 @@
 package gym.crm.backend.service;
 
-import gym.crm.backend.domain.entities.Trainee;
-import gym.crm.backend.domain.entities.Trainer;
-import gym.crm.backend.domain.entities.Training;
+import gym.crm.backend.domain.entities.*;
 import gym.crm.backend.domain.request.TrainingCreationRequest;
 import gym.crm.backend.domain.response.training.TrainingTraineesResponse;
 import gym.crm.backend.domain.response.training.TrainingTrainersResponse;
@@ -16,6 +14,8 @@ import gym.crm.backend.repository.TrainingTypeRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.text.ParseException;
@@ -42,28 +42,69 @@ public class TrainingService {
         this.trainingTypeRepository = trainingTypeRepository;
     }
 
-    public Set<TrainingTrainersResponse> getTrainerTrainings(String username, String fromDate, String toDate, String traineeName){
+    public Page<TrainingTrainersResponse> getTrainerTrainings(String username, String fromDate, String toDate, String traineeName, Pageable pageable){
 
         Date fromDateParsed = parseDate(fromDate);
         Date toDateParsed = parseDate(toDate);
-        Set<Training> trainingList = trainingRepository.findTrainerTrainings(username, fromDateParsed, toDateParsed, traineeName);
-        Set<TrainingTrainersResponse> trainingTrainersResponseList = new HashSet<>();
-        for (Training training : trainingList) {
-            trainingTrainersResponseList.add(new TrainingTrainersResponse(training.getTrainingName(), training.getTrainingDate(), training.getTrainingType().toString(), training.getTrainingDuration(), training.getTrainee().getUser().getFirstName() + " " + training.getTrainee().getUser().getLastName()));
-        }
-        return  trainingTrainersResponseList;
+        Page<Training> trainingList = trainingRepository.findTrainerTrainings(username, fromDateParsed, toDateParsed, traineeName, pageable);
+
+        return trainingList.map(
+                training -> new TrainingTrainersResponse(
+                        training.getTrainingName(),
+                        training.getTrainingDate(),
+                        training.getTrainingType().toString(),
+                        training.getTrainingDuration(),
+                        training.getTrainee().getUser().getFirstName() + " " + training.getTrainee().getUser().getLastName()
+                )
+        );
     }
 
-    public Set<TrainingTraineesResponse> getTraineeTrainings(String username, String fromDate, String toDate, String trainerName, String trainingType){
+    public Page<TrainingTraineesResponse> getTraineeTrainings(String username,
+                                                              String fromDate,
+                                                              String toDate,
+                                                              String trainerName,
+                                                              String trainingType,
+                                                              Pageable pageable){
 
         Date fromDateParsed = parseDate(fromDate);
         Date toDateParsed = parseDate(toDate);
-        Set<Training> trainingList = trainingRepository.findTraineeTrainings(username, fromDateParsed, toDateParsed, trainerName, trainingType);
-        Set<TrainingTraineesResponse> trainingTraineesResponseList = new HashSet<>();
-        for (Training training : trainingList) {
-            trainingTraineesResponseList.add(new TrainingTraineesResponse(training.getTrainingName(), training.getTrainingDate(), training.getTrainingType().toString(), training.getTrainingDuration(), training.getTrainer().getUser().getFirstName() + " " + training.getTrainer().getUser().getLastName()));
+
+        if (trainingType == null || trainingType.isEmpty()) {
+            return trainingRepository.findTraineeTrainings(
+                    username,
+                    fromDateParsed,
+                    toDateParsed,
+                    trainerName,
+                    null,
+                    pageable
+            ).map(
+                    training -> new TrainingTraineesResponse(
+                            training.getTrainingName(),
+                            training.getTrainingDate(),
+                            training.getTrainingType().toString(),
+                            training.getTrainingDuration(),
+                            training.getTrainer().getUser().getFirstName() + " " + training.getTrainer().getUser().getLastName()
+                    )
+            );
         }
-        return trainingTraineesResponseList;
+        TrainingType trainingTypeEntity = trainingTypeRepository.findByTrainingTypeName(TrainingTypes.valueOf(trainingType)).orElse(null);
+
+        return trainingRepository.findTraineeTrainings(
+                username,
+                fromDateParsed,
+                toDateParsed,
+                trainerName,
+                trainingTypeEntity,
+                pageable
+        ).map(
+                training -> new TrainingTraineesResponse(
+                        training.getTrainingName(),
+                        training.getTrainingDate(),
+                        training.getTrainingType().toString(),
+                        training.getTrainingDuration(),
+                        training.getTrainer().getUser().getFirstName() + " " + training.getTrainer().getUser().getLastName()
+                )
+        );
     }
 
     public void createTraining(TrainingCreationRequest training) {
@@ -95,19 +136,13 @@ public class TrainingService {
         trainingRepository.save(trainingEntity);
     }
 
-    public Set<TrainingTypeResponse> getTrainingTypes() {
-        String transactionId = MDC.get("transactionId");
-
-        Set<TrainingTypeResponse> trainingTypeResponseList = new HashSet<>();
-
-        trainingTypeRepository.findAll().forEach(trainingTypeEntity -> {
-            trainingTypeResponseList.add(
-                    new TrainingTypeResponse(
-                            trainingTypeEntity.getTrainingTypeName().toString(),
-                            trainingTypeEntity.getId()
-                    ));
-        });
-        return trainingTypeResponseList;
+    public Page<TrainingTypeResponse> getTrainingTypes(Pageable pageable) {
+        return trainingTypeRepository.findAll(pageable).map(
+                trainingType -> new TrainingTypeResponse(
+                        trainingType.getTrainingTypeName().toString(),
+                        trainingType.getId()
+                )
+        );
     }
 
     private Date parseDate(String dateStr) {
@@ -121,4 +156,6 @@ public class TrainingService {
         }
     }
 
+
 }
+
