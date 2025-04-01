@@ -36,7 +36,6 @@ public class TraineeService {
     private final TraineeRepository traineeRepository;
     private final TrainerRepository trainerRepository;
     private final UserUtil userUtil;
-    private final Timer trainingTimer;
     private final UserRepository userRepository;
 
     @Autowired
@@ -47,13 +46,11 @@ public class TraineeService {
         this.traineeRepository = traineeRepository;
         this.trainerRepository = trainerRepository;
         this.userUtil = userUtil;
-        this.trainingTimer = registry.timer("training_processing_time");
         this.userRepository = userRepository;
     }
 
     @Transactional
     public UserCreationResponse createTrainee(TraineeCreationRequest trainee) {
-        long startTime = System.nanoTime();
         List<String> usernames = getTraineeUsernames(traineeRepository.findAll());
         String transactionId = MDC.get("transactionId");
 
@@ -71,7 +68,6 @@ public class TraineeService {
 
         Trainee traineeEntity = getTrainee(trainee, username, password);
         traineeRepository.save(traineeEntity);
-        trainingTimer.record(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
         return new UserCreationResponse(username, password);
     }
 

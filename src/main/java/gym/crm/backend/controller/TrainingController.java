@@ -3,6 +3,9 @@ package gym.crm.backend.controller;
 import gym.crm.backend.domain.request.TrainingCreationRequest;
 import gym.crm.backend.domain.response.trainingType.TrainingTypeResponse;
 import gym.crm.backend.service.TrainingService;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -23,6 +26,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 
 @RestController
@@ -32,13 +36,22 @@ import java.util.UUID;
 public class TrainingController {
 
     private final TrainingService trainingService;
+    private final MeterRegistry meterRegistry;
+
+    private final Counter trainingRegistrationCounter;
+    private final Timer trainingRegistrationTimer;
 
     @Autowired
     private PagedResourcesAssembler<TrainingTypeResponse> pagedResourcesAssemblerTrainingType;
 
     @Autowired
-    public TrainingController(TrainingService trainingService) {
+    public TrainingController(TrainingService trainingService,
+                              MeterRegistry meterRegistry) {
         this.trainingService = trainingService;
+        this.meterRegistry = meterRegistry;
+
+        this.trainingRegistrationCounter = meterRegistry.counter("training.registration.counter");
+        this.trainingRegistrationTimer = meterRegistry.timer("training.registration.timer");
     }
 
     @PostMapping("/register")
@@ -50,6 +63,7 @@ public class TrainingController {
     })
     public ResponseEntity<?> registerTraining(@RequestBody @Valid TrainingCreationRequest trainingCreationRequest) {
         String transactionId = UUID.randomUUID().toString();
+        long startTime = System.nanoTime();
         MDC.put("transactionId", transactionId);
         log.info("Transaction ID: {} - Registering training", transactionId);
 
@@ -57,6 +71,8 @@ public class TrainingController {
 
         log.info("Transaction ID: {} - Training registered successfully", transactionId);
         MDC.clear();
+        trainingRegistrationCounter.increment();
+        trainingRegistrationTimer.record(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 

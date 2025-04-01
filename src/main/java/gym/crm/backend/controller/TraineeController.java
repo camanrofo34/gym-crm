@@ -10,6 +10,9 @@ import gym.crm.backend.domain.response.training.TrainingTraineesResponse;
 import gym.crm.backend.service.TraineeService;
 import gym.crm.backend.service.TrainingService;
 import gym.crm.backend.service.UserService;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -33,6 +36,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
@@ -47,6 +51,10 @@ public class TraineeController {
     private final TraineeService traineeService;
     private final TrainingService trainingService;
     private final UserService userService;
+    private final MeterRegistry meterRegistry;
+
+    private final Counter traineeRegistrationCounter;
+    private final Timer traineeRegistrationTimer;
 
     @Autowired
     private PagedResourcesAssembler<TrainingTraineesResponse> pagedResourcesAssemblerTraining;
@@ -58,10 +66,15 @@ public class TraineeController {
     @Autowired
     public TraineeController(TraineeService traineeService,
                              TrainingService trainingService,
-                             UserService userService) {
+                             UserService userService,
+                             MeterRegistry meterRegistry) {
         this.traineeService = traineeService;
         this.trainingService = trainingService;
         this.userService = userService;
+        this.meterRegistry = meterRegistry;
+
+        this.traineeRegistrationCounter = meterRegistry.counter("trainee.registration.counter");
+        this.traineeRegistrationTimer = meterRegistry.timer("trainee.registration.timer");
     }
 
     @PostMapping("/register")
@@ -72,6 +85,7 @@ public class TraineeController {
     })
     public ResponseEntity<EntityModel<UserCreationResponse>> registerTrainee(@Valid @RequestBody TraineeCreationRequest traineeCreationRequest) {
         String transactionId = UUID.randomUUID().toString();
+        long startTime = System.nanoTime();
 
         MDC.put("transactionId", transactionId);
 
@@ -87,8 +101,10 @@ public class TraineeController {
                 linkTo(methodOn(TraineeController.class).getTrainersNotAssignedToTrainee(userCreationResponse.getUsername(), Pageable.unpaged())).withRel("trainers-not-assigned")
         );
 
+        traineeRegistrationCounter.increment();
         log.info("Transaction ID: {} - Trainee created successfully: {}", transactionId, userCreationResponse);
         MDC.clear();
+        traineeRegistrationTimer.record(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -184,7 +200,7 @@ public class TraineeController {
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<PagedModel<EntityModel<TrainersTraineeResponse>>> getTrainersNotAssignedToTrainee(@PathVariable String username,
-                                                               @PageableDefault(size = 10, sort = "trainerId", direction = Sort.Direction.DESC) Pageable pageable) {
+                                                               @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.DESC) Pageable pageable) {
         String transactionId = UUID.randomUUID().toString();
 
         MDC.put("transactionId", transactionId);

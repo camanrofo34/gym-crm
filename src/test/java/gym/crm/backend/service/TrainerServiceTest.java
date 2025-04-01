@@ -10,6 +10,7 @@ import gym.crm.backend.domain.response.UserCreationResponse;
 import gym.crm.backend.domain.response.trainer.TrainerUpdateResponse;
 import gym.crm.backend.repository.TrainerRepository;
 import gym.crm.backend.repository.TrainingTypeRepository;
+import gym.crm.backend.repository.UserRepository;
 import gym.crm.backend.util.UserUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,9 @@ class TrainerServiceTest {
     @Mock
     private UserUtil userUtil;
 
+    @Mock
+    private UserRepository userRepository;
+
     @InjectMocks
     private TrainerService trainerService;
 
@@ -54,6 +58,7 @@ class TrainerServiceTest {
         when(userUtil.generatePassword()).thenReturn("password123");
         when(trainingTypeRepository.getReferenceById(anyLong())).thenReturn(new TrainingType());
         when(trainerRepository.save(any(Trainer.class))).thenReturn(new Trainer());
+        when(userRepository.findByUsername(anyString())).thenReturn(Optional.empty());
         when(trainingTypeRepository.findById(anyLong())).thenReturn(Optional.of(new TrainingType()));
         UserCreationResponse response = trainerService.createTrainer(request);
 

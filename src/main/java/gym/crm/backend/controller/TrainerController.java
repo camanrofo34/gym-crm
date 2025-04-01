@@ -5,20 +5,19 @@ import gym.crm.backend.domain.request.TrainerUpdateRequest;
 import gym.crm.backend.domain.response.UserCreationResponse;
 import gym.crm.backend.domain.response.trainer.TrainerGetProfileResponse;
 import gym.crm.backend.domain.response.trainer.TrainerUpdateResponse;
-import gym.crm.backend.domain.response.training.TrainingTraineesResponse;
 import gym.crm.backend.domain.response.training.TrainingTrainersResponse;
 import gym.crm.backend.service.TrainerService;
 import gym.crm.backend.service.TrainingService;
 import gym.crm.backend.service.UserService;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -26,7 +25,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.data.web.PagedResourcesAssembler;
-import org.springframework.hateoas.CollectionModel;
 import org.springframework.hateoas.EntityModel;
 import org.springframework.hateoas.PagedModel;
 import org.springframework.http.HttpStatus;
@@ -34,9 +32,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
@@ -51,15 +48,26 @@ public class TrainerController {
     private final TrainerService trainerService;
     private final TrainingService trainingService;
     private final UserService userService;
+    private final MeterRegistry meterRegistry;
+
+    private final Counter trainerRegistrationCounter;
+    private final Timer trainerRegistrationTimer;
 
     @Autowired
     private PagedResourcesAssembler<TrainingTrainersResponse> pagedResourcesAssemblerTraining;
 
     @Autowired
-    public TrainerController(TrainerService trainerService, TrainingService trainingService, UserService userService) {
+    public TrainerController(TrainerService trainerService,
+                             TrainingService trainingService,
+                             UserService userService,
+                             MeterRegistry meterRegistry) {
         this.trainerService = trainerService;
         this.trainingService = trainingService;
         this.userService = userService;
+        this.meterRegistry = meterRegistry;
+
+        this.trainerRegistrationCounter = meterRegistry.counter("trainer.registration.counter");
+        this.trainerRegistrationTimer = meterRegistry.timer("trainer.registration.timer");
     }
 
     @PostMapping("/register")
@@ -69,9 +77,9 @@ public class TrainerController {
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<EntityModel<UserCreationResponse>> registerTrainer(@RequestBody @Valid TrainerCreationRequest trainerRequest) {
-
         String transactionId = UUID.randomUUID().toString();
 
+        long startTime = System.nanoTime();
         MDC.put("transactionId", transactionId);
 
         log.info("Transaction ID: {} - Registering trainer: {}", transactionId, trainerRequest.getFirstName());
@@ -85,7 +93,9 @@ public class TrainerController {
         );
 
         log.info("Transaction ID: {} - Trainer registered successfully: {}", transactionId, userCreationResponse.getUsername());
+        trainerRegistrationCounter.increment();
         MDC.clear();
+        trainerRegistrationTimer.record(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 

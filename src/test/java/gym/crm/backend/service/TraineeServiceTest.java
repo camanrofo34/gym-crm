@@ -17,6 +17,9 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 import java.util.*;
 
@@ -154,19 +157,19 @@ void createTrainee_Success() {
 
     @Test
     void getTrainersNotInTrainersTraineeListByTraineeUserUsername_Success() {
-        Set<Trainer> trainers = new HashSet<>();
         Trainer trainer = new Trainer();
         User user = new User();
         user.setUsername("trainer1");
         trainer.setUser(user);
         trainer.setSpecialization(new TrainingType(1L, TrainingTypes.RESISTANCE, Collections.emptySet(), Collections.emptySet()));
-        trainers.add(trainer);
+
+        Page<Trainer> trainers = new PageImpl<>(List.of(trainer));
         when(traineeRepository.findByUserUsername("johndoe")).thenReturn(Optional.of(new Trainee()));
-        when(traineeRepository.findTrainersNotInTrainersTraineeListByTraineeUserUsername("johndoe")).thenReturn(trainers);
+        when(traineeRepository.findTrainersNotInTrainersTraineeListByTraineeUserUsername("johndoe", Pageable.unpaged())).thenReturn(trainers);
 
-        Set<TrainersTraineeResponse> response = traineeService.getTrainersNotInTrainersTraineeListByTraineeUserUsername("johndoe");
+        Page<TrainersTraineeResponse> response = traineeService.getTrainersNotInTrainersTraineeListByTraineeUserUsername("johndoe", Pageable.unpaged());
 
-        assertEquals(1, response.size());
+        assertEquals(1, response.getTotalElements());
         assertEquals("trainer1", response.stream().toList().getFirst().getTrainerUsername());
     }
 
