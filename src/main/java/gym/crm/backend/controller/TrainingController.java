@@ -36,22 +36,24 @@ import java.util.concurrent.TimeUnit;
 public class TrainingController {
 
     private final TrainingService trainingService;
-    private final MeterRegistry meterRegistry;
 
     private final Counter trainingRegistrationCounter;
     private final Timer trainingRegistrationTimer;
 
-    @Autowired
     private PagedResourcesAssembler<TrainingTypeResponse> pagedResourcesAssemblerTrainingType;
 
     @Autowired
     public TrainingController(TrainingService trainingService,
                               MeterRegistry meterRegistry) {
         this.trainingService = trainingService;
-        this.meterRegistry = meterRegistry;
 
         this.trainingRegistrationCounter = meterRegistry.counter("training.registration.counter");
         this.trainingRegistrationTimer = meterRegistry.timer("training.registration.timer");
+    }
+
+    @Autowired
+    public void setPagedResourcesAssemblerTrainingType(PagedResourcesAssembler<TrainingTypeResponse> pagedResourcesAssemblerTrainingType) {
+        this.pagedResourcesAssemblerTrainingType = pagedResourcesAssemblerTrainingType;
     }
 
     @PostMapping("/register")
@@ -83,7 +85,7 @@ public class TrainingController {
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<PagedModel<EntityModel<TrainingTypeResponse>>> getTrainingTypes(
-            @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.DESC) Pageable pageable
+            @PageableDefault(sort = "id", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         String transactionId = UUID.randomUUID().toString();
         MDC.put("transactionId", transactionId);

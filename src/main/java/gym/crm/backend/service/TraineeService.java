@@ -9,15 +9,10 @@ import gym.crm.backend.domain.response.trainee.TraineeGetProfileResponse;
 import gym.crm.backend.domain.response.trainee.TraineeUpdateResponse;
 import gym.crm.backend.domain.response.UserCreationResponse;
 import gym.crm.backend.domain.response.trainee.TrainersTraineeResponse;
-import gym.crm.backend.exception.runtimeException.PasswordNotCreatedException;
-import gym.crm.backend.exception.entityNotFoundException.ProfileNotFoundException;
-import gym.crm.backend.exception.runtimeException.UsernameNotCreatedException;
+import gym.crm.backend.exception.types.notFound.ProfileNotFoundException;
 import gym.crm.backend.repository.TraineeRepository;
 import gym.crm.backend.repository.TrainerRepository;
 import gym.crm.backend.repository.UserRepository;
-import gym.crm.backend.util.UserUtil;
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -27,7 +22,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 @Service
 @Slf4j
@@ -35,37 +29,25 @@ public class TraineeService {
 
     private final TraineeRepository traineeRepository;
     private final TrainerRepository trainerRepository;
-    private final UserUtil userUtil;
     private final UserRepository userRepository;
+    private final UserCredentialService userCredentialService;
 
     @Autowired
     public TraineeService(TraineeRepository traineeRepository,
                           TrainerRepository trainerRepository,
-                          UserUtil userUtil,
-                          MeterRegistry registry, UserRepository userRepository) {
+                          UserRepository userRepository,
+                          UserCredentialService userCredentialService) {
         this.traineeRepository = traineeRepository;
         this.trainerRepository = trainerRepository;
-        this.userUtil = userUtil;
         this.userRepository = userRepository;
+        this.userCredentialService = userCredentialService;
     }
 
     @Transactional
     public UserCreationResponse createTrainee(TraineeCreationRequest trainee) {
-        List<String> usernames = getTraineeUsernames(traineeRepository.findAll());
         String transactionId = MDC.get("transactionId");
-
-        String username = userUtil.generateUsername(trainee.getFirstName(), trainee.getLastName(), usernames);
-        if (username == null || username.isEmpty()) {
-            log.error("Transaction ID: {}. Failed to generate username", transactionId);
-            throw new UsernameNotCreatedException("Failed to generate username");
-        }
-
-        String password = userUtil.generatePassword();
-        if (password == null || password.isEmpty()) {
-            log.error("Transaction ID: {}. Failed to generate password", transactionId);
-            throw new PasswordNotCreatedException("Failed to generate password");
-        }
-
+        String username = userCredentialService.generateUsername(trainee.getFirstName(), trainee.getLastName());
+        String password = userCredentialService.generatePassword();
         Trainee traineeEntity = getTrainee(trainee, username, password);
         traineeRepository.save(traineeEntity);
         return new UserCreationResponse(username, password);
@@ -178,15 +160,6 @@ public class TraineeService {
         trainee.setTrainers(newTrainers);
         traineeRepository.save(trainee);
         return trainersTraineeResponses;
-    }
-
-    //Helping methods for working with Trainee entity
-
-    private List<String> getTraineeUsernames(List<Trainee> trainees) {
-        if (trainees.isEmpty()) {
-            return List.of();
-        }
-        return trainees.stream().map(t -> t.getUser().getUsername()).toList();
     }
 
     private Trainee getTrainee(TraineeCreationRequest trainee, String username, String password) {

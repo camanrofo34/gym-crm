@@ -48,12 +48,10 @@ public class TrainerController {
     private final TrainerService trainerService;
     private final TrainingService trainingService;
     private final UserService userService;
-    private final MeterRegistry meterRegistry;
 
     private final Counter trainerRegistrationCounter;
     private final Timer trainerRegistrationTimer;
 
-    @Autowired
     private PagedResourcesAssembler<TrainingTrainersResponse> pagedResourcesAssemblerTraining;
 
     @Autowired
@@ -64,10 +62,14 @@ public class TrainerController {
         this.trainerService = trainerService;
         this.trainingService = trainingService;
         this.userService = userService;
-        this.meterRegistry = meterRegistry;
 
         this.trainerRegistrationCounter = meterRegistry.counter("trainer.registration.counter");
         this.trainerRegistrationTimer = meterRegistry.timer("trainer.registration.timer");
+    }
+
+    @Autowired
+    public void setPagedResourcesAssemblerTraining(PagedResourcesAssembler<TrainingTrainersResponse> pagedResourcesAssemblerTraining) {
+        this.pagedResourcesAssemblerTraining = pagedResourcesAssemblerTraining;
     }
 
     @PostMapping("/register")
@@ -163,7 +165,7 @@ public class TrainerController {
                                                           @RequestParam(required = false) String fromDate,
                                                           @RequestParam(required = false) String toDate,
                                                           @RequestParam(required = false) String traineeName,
-                                                          @PageableDefault(size = 10, sort = "trainingDate", direction = Sort.Direction.DESC) Pageable pageable) {
+                                                          @PageableDefault(sort = "trainingDate", direction = Sort.Direction.DESC) Pageable pageable) {
         String transactionId = UUID.randomUUID().toString();
 
         MDC.put("transactionId", transactionId);

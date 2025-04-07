@@ -1,4 +1,4 @@
-package gym.crm.backend.exception.entityNotFoundException;
+package gym.crm.backend.exception.types.notFound;
 
 import jakarta.persistence.EntityNotFoundException;
 

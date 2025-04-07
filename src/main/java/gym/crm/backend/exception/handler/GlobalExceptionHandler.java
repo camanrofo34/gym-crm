@@ -1,10 +1,10 @@
-package gym.crm.backend.controller;
+package gym.crm.backend.exception.handler;
 
-import gym.crm.backend.exception.entityNotFoundException.ProfileNotFoundException;
-import gym.crm.backend.exception.entityNotFoundException.TrainingTypeNotFoundException;
-import gym.crm.backend.exception.entityNotFoundException.UserNotFoundException;
-import gym.crm.backend.exception.runtimeException.PasswordNotCreatedException;
-import gym.crm.backend.exception.runtimeException.UsernameNotCreatedException;
+import gym.crm.backend.exception.types.notFound.ProfileNotFoundException;
+import gym.crm.backend.exception.types.notFound.TrainingTypeNotFoundException;
+import gym.crm.backend.exception.types.notFound.UserNotFoundException;
+import gym.crm.backend.exception.types.runtime.PasswordNotCreatedException;
+import gym.crm.backend.exception.types.runtime.UsernameNotCreatedException;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;

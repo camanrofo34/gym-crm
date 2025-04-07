@@ -51,15 +51,12 @@ public class TraineeController {
     private final TraineeService traineeService;
     private final TrainingService trainingService;
     private final UserService userService;
-    private final MeterRegistry meterRegistry;
 
     private final Counter traineeRegistrationCounter;
     private final Timer traineeRegistrationTimer;
 
-    @Autowired
     private PagedResourcesAssembler<TrainingTraineesResponse> pagedResourcesAssemblerTraining;
 
-    @Autowired
     private PagedResourcesAssembler<TrainersTraineeResponse> pagedResourcesAssemblerTrainers;
 
 
@@ -71,10 +68,19 @@ public class TraineeController {
         this.traineeService = traineeService;
         this.trainingService = trainingService;
         this.userService = userService;
-        this.meterRegistry = meterRegistry;
 
         this.traineeRegistrationCounter = meterRegistry.counter("trainee.registration.counter");
         this.traineeRegistrationTimer = meterRegistry.timer("trainee.registration.timer");
+    }
+
+    @Autowired
+    public void setPagedResourcesAssemblerTraining(PagedResourcesAssembler<TrainingTraineesResponse> pagedResourcesAssemblerTraining) {
+        this.pagedResourcesAssemblerTraining = pagedResourcesAssemblerTraining;
+    }
+
+    @Autowired
+    public void setPagedResourcesAssemblerTrainers(PagedResourcesAssembler<TrainersTraineeResponse> pagedResourcesAssemblerTrainers) {
+        this.pagedResourcesAssemblerTrainers = pagedResourcesAssemblerTrainers;
     }
 
     @PostMapping("/register")
@@ -200,7 +206,7 @@ public class TraineeController {
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<PagedModel<EntityModel<TrainersTraineeResponse>>> getTrainersNotAssignedToTrainee(@PathVariable String username,
-                                                               @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.DESC) Pageable pageable) {
+                                                               @PageableDefault(sort = "id", direction = Sort.Direction.DESC) Pageable pageable) {
         String transactionId = UUID.randomUUID().toString();
 
         MDC.put("transactionId", transactionId);
@@ -258,7 +264,7 @@ public class TraineeController {
             @RequestParam(required = false) String periodTo,
             @RequestParam(required = false) String trainerName,
             @RequestParam(required = false) String trainingType,
-            @PageableDefault(size = 10, sort = "trainingDate", direction = Sort.Direction.DESC) Pageable pageable) {
+            @PageableDefault(sort = "trainingDate", direction = Sort.Direction.DESC) Pageable pageable) {
 
         String transactionId = UUID.randomUUID().toString();
         MDC.put("transactionId", transactionId);

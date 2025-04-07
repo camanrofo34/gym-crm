@@ -1,12 +1,17 @@
 package gym.crm.backend.service;
 
-import gym.crm.backend.domain.entities.*;
+import gym.crm.backend.domain.entities.Training;
+import gym.crm.backend.domain.entities.TrainingType;
+import gym.crm.backend.domain.entities.TrainingTypes;
+import gym.crm.backend.domain.entities.Trainer;
+import gym.crm.backend.domain.entities.Trainee;
 import gym.crm.backend.domain.request.TrainingCreationRequest;
 import gym.crm.backend.domain.response.training.TrainingTraineesResponse;
 import gym.crm.backend.domain.response.training.TrainingTrainersResponse;
 import gym.crm.backend.domain.response.trainingType.TrainingTypeResponse;
-import gym.crm.backend.exception.runtimeException.DateParsingFailedException;
-import gym.crm.backend.exception.entityNotFoundException.ProfileNotFoundException;
+import gym.crm.backend.exception.types.notFound.TrainingTypeNotFoundException;
+import gym.crm.backend.exception.types.runtime.DateParsingFailedException;
+import gym.crm.backend.exception.types.notFound.ProfileNotFoundException;
 import gym.crm.backend.repository.TraineeRepository;
 import gym.crm.backend.repository.TrainerRepository;
 import gym.crm.backend.repository.TrainingRepository;
@@ -20,10 +25,10 @@ import org.springframework.stereotype.Service;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.Date;
 
-@Service
 @Slf4j
+@Service
 public class TrainingService {
 
     private final TrainingRepository trainingRepository;
@@ -66,28 +71,17 @@ public class TrainingService {
                                                               String trainingType,
                                                               Pageable pageable){
 
+        String transactionId = MDC.get("transactionId");
+
         Date fromDateParsed = parseDate(fromDate);
         Date toDateParsed = parseDate(toDate);
 
-        if (trainingType == null || trainingType.isEmpty()) {
-            return trainingRepository.findTraineeTrainings(
-                    username,
-                    fromDateParsed,
-                    toDateParsed,
-                    trainerName,
-                    null,
-                    pageable
-            ).map(
-                    training -> new TrainingTraineesResponse(
-                            training.getTrainingName(),
-                            training.getTrainingDate(),
-                            training.getTrainingType().toString(),
-                            training.getTrainingDuration(),
-                            training.getTrainer().getUser().getFirstName() + " " + training.getTrainer().getUser().getLastName()
-                    )
-            );
-        }
-        TrainingType trainingTypeEntity = trainingTypeRepository.findByTrainingTypeName(TrainingTypes.valueOf(trainingType)).orElse(null);
+        TrainingType trainingTypeEntity = trainingTypeRepository.findByTrainingTypeName(TrainingTypes.valueOf(trainingType))
+                .orElseThrow(() -> {
+                    log.error("Transaction Id: {}. Training type {} not found", transactionId, trainingType);
+                    return new TrainingTypeNotFoundException(trainingType);
+                }
+                );
 
         return trainingRepository.findTraineeTrainings(
                 username,
@@ -155,7 +149,5 @@ public class TrainingService {
             throw new DateParsingFailedException("Invalid date format. Use yyyy-MM-dd.");
         }
     }
-
-
 }
 

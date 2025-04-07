@@ -9,56 +9,44 @@ import gym.crm.backend.domain.request.TrainerUpdateRequest;
 import gym.crm.backend.domain.response.trainer.TrainerGetProfileResponse;
 import gym.crm.backend.domain.response.UserCreationResponse;
 import gym.crm.backend.domain.response.trainer.TrainerUpdateResponse;
-import gym.crm.backend.exception.runtimeException.PasswordNotCreatedException;
-import gym.crm.backend.exception.entityNotFoundException.ProfileNotFoundException;
-import gym.crm.backend.exception.entityNotFoundException.TrainingTypeNotFoundException;
-import gym.crm.backend.exception.runtimeException.UsernameNotCreatedException;
+import gym.crm.backend.exception.types.notFound.ProfileNotFoundException;
+import gym.crm.backend.exception.types.notFound.TrainingTypeNotFoundException;
 import gym.crm.backend.repository.TrainerRepository;
 import gym.crm.backend.repository.TrainingTypeRepository;
 import gym.crm.backend.repository.UserRepository;
-import gym.crm.backend.util.UserUtil;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 
 @Service
 @Slf4j
 public class TrainerService {
     private final TrainerRepository trainerRepository;
     private final TrainingTypeRepository trainingTypeRepository;
-    private final UserUtil userUtil;
     private final UserRepository userRepository;
+    private final UserCredentialService userCredentialService;
 
     @Autowired
-    public TrainerService(TrainerRepository trainerRepository, TrainingTypeRepository trainingTypeRepository , UserUtil userUtil, UserRepository userRepository) {
+    public TrainerService(TrainerRepository trainerRepository,
+                          TrainingTypeRepository trainingTypeRepository,
+                          UserRepository userRepository,
+                          UserCredentialService userCredentialService) {
         this.trainerRepository = trainerRepository;
         this.trainingTypeRepository = trainingTypeRepository;
-        this.userUtil = userUtil;
         this.userRepository = userRepository;
+        this.userCredentialService = userCredentialService;
     }
 
     @Transactional
     public UserCreationResponse createTrainer(TrainerCreationRequest trainer) {
-
         String transactionId = MDC.get("transactionId");
 
-        List<String> usernames = getTraineeUsernames(trainerRepository.findAll());
+        String username = userCredentialService.generateUsername(trainer.getFirstName(), trainer.getLastName());
 
-        String username = userUtil.generateUsername(trainer.getFirstName(), trainer.getLastName(), usernames);
-        if (username == null || username.isEmpty()) {
-            log.error("Transaction ID: {}. Failed to generate username", transactionId);
-            throw new UsernameNotCreatedException("Failed to generate username");
-        }
-
-        String password = userUtil.generatePassword();
-        if (password == null || password.isEmpty()) {
-            log.error("Transaction ID: {}. Failed to generate password", transactionId);
-            throw new PasswordNotCreatedException("Failed to generate password");
-        }
+        String password = userCredentialService.generatePassword();
 
         User user = new User();
         user.setUsername(username);
@@ -119,12 +107,5 @@ public class TrainerService {
         trainerRepository.save(trainerEntity);
 
         return new TrainerUpdateResponse(trainerEntity);
-    }
-
-    private List<String> getTraineeUsernames(List<Trainer> trainers) {
-        if (trainers.isEmpty()) {
-            return List.of();
-        }
-        return trainers.stream().map(t -> t.getUser().getUsername()).toList();
     }
 }
