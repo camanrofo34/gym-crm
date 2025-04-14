@@ -23,6 +23,7 @@ import org.springframework.hateoas.EntityModel;
 import org.springframework.hateoas.PagedModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -63,6 +64,7 @@ public class TrainingController {
             @ApiResponse(responseCode = "404", description = "Trainee/Trainer not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
+    @PreAuthorize("hasRole('ROLE_TRAINER') or hasRole('ROLE_TRAINEE')")
     public ResponseEntity<?> registerTraining(@RequestBody @Valid TrainingCreationRequest trainingCreationRequest) {
         String transactionId = UUID.randomUUID().toString();
         long startTime = System.nanoTime();
@@ -84,6 +86,7 @@ public class TrainingController {
             @ApiResponse(responseCode = "200", description = "Training types fetched successfully"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
+    @PreAuthorize("hasRole('ROLE_TRAINER') or hasRole('ROLE_TRAINEE')")
     public ResponseEntity<PagedModel<EntityModel<TrainingTypeResponse>>> getTrainingTypes(
             @PageableDefault(sort = "id", direction = Sort.Direction.DESC) Pageable pageable
     ) {

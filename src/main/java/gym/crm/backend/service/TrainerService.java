@@ -18,6 +18,7 @@ import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 
@@ -28,16 +29,19 @@ public class TrainerService {
     private final TrainingTypeRepository trainingTypeRepository;
     private final UserRepository userRepository;
     private final UserCredentialService userCredentialService;
+    private final PasswordEncoder passwordEncoder;
 
     @Autowired
     public TrainerService(TrainerRepository trainerRepository,
                           TrainingTypeRepository trainingTypeRepository,
                           UserRepository userRepository,
-                          UserCredentialService userCredentialService) {
+                          UserCredentialService userCredentialService,
+                          PasswordEncoder passwordEncoder) {
         this.trainerRepository = trainerRepository;
         this.trainingTypeRepository = trainingTypeRepository;
         this.userRepository = userRepository;
         this.userCredentialService = userCredentialService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional
@@ -46,7 +50,8 @@ public class TrainerService {
 
         String username = userCredentialService.generateUsername(trainer.getFirstName(), trainer.getLastName());
 
-        String password = userCredentialService.generatePassword();
+        String originalPassword = userCredentialService.generatePassword();
+        String password = passwordEncoder.encode(originalPassword);
 
         User user = new User();
         user.setUsername(username);
@@ -68,7 +73,7 @@ public class TrainerService {
         trainerEntity.setSpecialization(trainingType);
         trainerRepository.save(trainerEntity);
 
-        return new UserCreationResponse(username, password);
+        return new UserCreationResponse(username, originalPassword);
     }
 
     public TrainerGetProfileResponse getTrainerByUsername(String username) {

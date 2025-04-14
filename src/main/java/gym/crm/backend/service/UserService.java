@@ -6,40 +6,84 @@ import gym.crm.backend.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
+
+import java.util.Collection;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @Slf4j
-public class UserService {
+public class UserService{
 
     private final UserRepository userRepository;
+    private final AuthenticationProvider authenticationProvider;
+    private static final int MAX_ATTEMPTS = 3;
+    private static final long BLOCK_TIME_MS = TimeUnit.MINUTES.toMillis(5);
+
+    private final ConcurrentHashMap<String, Integer> attempts = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Long> blockTimestamps = new ConcurrentHashMap<>();
 
     @Autowired
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, AuthenticationProvider authenticationProvider) {
         this.userRepository = userRepository;
+        this.authenticationProvider = authenticationProvider;
     }
 
     public boolean login(LoginRequest loginRequest) {
         String transactionId = MDC.get("transactionId");
-        log.info("Transaction Id: {}. Login attempt for user: {}", transactionId,loginRequest.getUsername());
+        log.info("Transaction Id: {}. Login attempt for user: {}", transactionId, loginRequest.getUsername());
 
-        User user = userRepository.findByUsername(loginRequest.getUsername()).orElseThrow(() ->
-        {
-            log.error("Transaction Id: {}. User not found: {}", transactionId, loginRequest.getUsername());
-            return new RuntimeException("User with username: " + loginRequest.getUsername() + " not found");
-        });
+        if (isBlocked(loginRequest.getUsername())) {
+            log.error("Transaction Id: {}. User {} is blocked", transactionId, loginRequest.getUsername());
+            throw new RuntimeException("User is blocked");
+        }
 
-        return user.getPassword().equals(loginRequest.getPassword());
+        try {
+            Authentication authentication = authenticationProvider.authenticate(
+                    new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword())
+            );
+
+            loginSucceeded(loginRequest.getUsername());
+            log.info("Transaction Id: {}. User {} logged in successfully", transactionId, loginRequest.getUsername());
+            return true;
+
+        } catch (BadCredentialsException e) {
+            loginFailed(loginRequest.getUsername());
+            log.error("Transaction Id: {}. Invalid credentials for user: {}", transactionId, loginRequest.getUsername());
+            return false;
+
+        } catch (AuthenticationException e) {
+            loginFailed(loginRequest.getUsername());
+            log.error("Transaction Id: {}. Authentication failed for user: {}. Reason: {}", transactionId, loginRequest.getUsername(), e.getMessage());
+            return false;
+        }
     }
+
 
     public void changePassword(LoginRequest loginRequest, String newPassword) {
         String transactionId = MDC.get("transactionId");
         log.info("Transaction Id: {}. Changing password for user: {}", transactionId, loginRequest.getUsername());
+
         User user = userRepository.findByUsername(loginRequest.getUsername()).orElseThrow(() ->
         {
             log.error("Transaction Id: {}. User not found: {}", transactionId, loginRequest.getUsername());
             return new RuntimeException("User with username: " + loginRequest.getUsername() + " not found");
         });
+        if (!user.getPassword().equals(loginRequest.getPassword())) {
+            log.error("Transaction Id: {}. Password mismatch for user: {}", transactionId, loginRequest.getUsername());
+            throw new RuntimeException("Password mismatch");
+        }
         user.setPassword(newPassword);
         userRepository.save(user);
     }
@@ -56,5 +100,30 @@ public class UserService {
 
         user.setIsActive(!isActive);
         userRepository.save(user);
+    }
+
+    private void loginFailed(String username) {
+        int currentAttempts = attempts.getOrDefault(username, 0);
+        attempts.put(username, currentAttempts + 1);
+        if (currentAttempts + 1 >= MAX_ATTEMPTS) {
+            blockTimestamps.put(username, System.currentTimeMillis());
+        }
+    }
+
+    private void loginSucceeded(String username) {
+        attempts.remove(username);
+        blockTimestamps.remove(username);
+    }
+
+    private boolean isBlocked(String username) {
+        Long blockedSince = blockTimestamps.get(username);
+        if (blockedSince == null) {
+            return false;
+        }
+        if ((System.currentTimeMillis() - blockedSince) >= BLOCK_TIME_MS) {
+            loginSucceeded(username);
+            return false;
+        }
+        return true;
     }
 }

@@ -19,6 +19,7 @@ import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -31,26 +32,29 @@ public class TraineeService {
     private final TrainerRepository trainerRepository;
     private final UserRepository userRepository;
     private final UserCredentialService userCredentialService;
+    private final PasswordEncoder passwordEncoder;
 
     @Autowired
     public TraineeService(TraineeRepository traineeRepository,
                           TrainerRepository trainerRepository,
                           UserRepository userRepository,
-                          UserCredentialService userCredentialService) {
+                          UserCredentialService userCredentialService,
+                          PasswordEncoder passwordEncoder) {
         this.traineeRepository = traineeRepository;
         this.trainerRepository = trainerRepository;
         this.userRepository = userRepository;
         this.userCredentialService = userCredentialService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional
     public UserCreationResponse createTrainee(TraineeCreationRequest trainee) {
-        String transactionId = MDC.get("transactionId");
         String username = userCredentialService.generateUsername(trainee.getFirstName(), trainee.getLastName());
-        String password = userCredentialService.generatePassword();
+        String originalPassword = userCredentialService.generatePassword();
+        String password = passwordEncoder.encode(originalPassword);
         Trainee traineeEntity = getTrainee(trainee, username, password);
         traineeRepository.save(traineeEntity);
-        return new UserCreationResponse(username, password);
+        return new UserCreationResponse(username, originalPassword);
     }
 
     public TraineeGetProfileResponse getTraineeByUsername(String username) {

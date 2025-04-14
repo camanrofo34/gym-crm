@@ -31,6 +31,7 @@ import org.springframework.hateoas.EntityModel;
 import org.springframework.hateoas.PagedModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -122,6 +123,7 @@ public class TraineeController {
             @ApiResponse(responseCode = "404", description = "Trainee not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
+    @PreAuthorize("hasRole('ROLE_TRAINEE')")
     public ResponseEntity<EntityModel<TraineeGetProfileResponse>> getTrainee(@PathVariable String username) {
 
         String transactionId = UUID.randomUUID().toString();
@@ -152,6 +154,7 @@ public class TraineeController {
             @ApiResponse(responseCode = "404", description = "Trainee not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
+    @PreAuthorize("hasRole('ROLE_TRAINEE')")
     public ResponseEntity<EntityModel<TraineeUpdateResponse>> updateTrainee(@PathVariable String username, @Valid @RequestBody TraineeUpdateRequest traineeUpdateRequest) {
 
         String transactionId = UUID.randomUUID().toString();
@@ -183,6 +186,7 @@ public class TraineeController {
             @ApiResponse(responseCode = "404", description = "Trainee not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
+    @PreAuthorize("hasRole('ROLE_TRAINEE')")
     public ResponseEntity<Void> deleteTrainee(@PathVariable String username) {
 
         String transactionId = UUID.randomUUID().toString();
@@ -205,6 +209,7 @@ public class TraineeController {
             @ApiResponse(responseCode = "404", description = "Trainee not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
+    @PreAuthorize("hasRole('ROLE_TRAINEE')")
     public ResponseEntity<PagedModel<EntityModel<TrainersTraineeResponse>>> getTrainersNotAssignedToTrainee(@PathVariable String username,
                                                                @PageableDefault(sort = "id", direction = Sort.Direction.DESC) Pageable pageable) {
         String transactionId = UUID.randomUUID().toString();
@@ -230,6 +235,7 @@ public class TraineeController {
             @ApiResponse(responseCode = "404", description = "Trainee/Trainer not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
+    @PreAuthorize("hasRole('ROLE_TRAINEE')")
     public ResponseEntity<CollectionModel<TrainersTraineeResponse>> assignTrainersToTrainee(@PathVariable String username, @Valid @RequestBody List<String> trainerUsernames) {
         String transactionId = UUID.randomUUID().toString();
 
@@ -258,6 +264,7 @@ public class TraineeController {
             @ApiResponse(responseCode = "404", description = "Trainee not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
+    @PreAuthorize("hasRole('ROLE_TRAINEE')")
     public ResponseEntity<PagedModel<EntityModel<TrainingTraineesResponse>>> getTrainingsForTrainee(
             @PathVariable String username,
             @RequestParam(required = false) String periodFrom,
@@ -287,6 +294,7 @@ public class TraineeController {
             @ApiResponse(responseCode = "404", description = "Trainee not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
+    @PreAuthorize("hasRole('ROLE_TRAINEE')")
     public ResponseEntity<Void> activateDeactivateTrainee(@PathVariable String username, @RequestParam boolean isActive) {
         String transactionId = UUID.randomUUID().toString();
 

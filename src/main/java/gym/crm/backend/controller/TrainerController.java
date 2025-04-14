@@ -29,6 +29,7 @@ import org.springframework.hateoas.EntityModel;
 import org.springframework.hateoas.PagedModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -108,6 +109,7 @@ public class TrainerController {
             @ApiResponse(responseCode = "404", description = "Trainer not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
+    @PreAuthorize("hasRole('ROLE_TRAINER')")
     public ResponseEntity<EntityModel<TrainerGetProfileResponse>> getTrainer(@PathVariable String username) {
 
         String transactionId = UUID.randomUUID().toString();
@@ -135,6 +137,7 @@ public class TrainerController {
             @ApiResponse(responseCode = "404", description = "Trainer not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
+    @PreAuthorize("hasRole('ROLE_TRAINER')")
     public ResponseEntity<EntityModel<TrainerUpdateResponse>> updateTrainer(@PathVariable String username, @Valid @RequestBody TrainerUpdateRequest trainerRequest) {
         String transactionId = UUID.randomUUID().toString();
 
@@ -161,6 +164,7 @@ public class TrainerController {
             @ApiResponse(responseCode = "404", description = "Trainer not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
+    @PreAuthorize("hasRole('ROLE_TRAINER')")
     public ResponseEntity<PagedModel<EntityModel<TrainingTrainersResponse>>> getTrainerTrainings(@PathVariable String username,
                                                           @RequestParam(required = false) String fromDate,
                                                           @RequestParam(required = false) String toDate,
@@ -188,6 +192,7 @@ public class TrainerController {
             @ApiResponse(responseCode = "404", description = "Trainer not found"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
+    @PreAuthorize("hasRole('ROLE_TRAINER')")
     public ResponseEntity<Void> activateDeactivateTrainer(@PathVariable String username, @RequestParam boolean isActive) {
         String transactionId = UUID.randomUUID().toString();
 
