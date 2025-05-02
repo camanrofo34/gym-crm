@@ -1,6 +1,5 @@
 package gym.crm.backend.service;
 
-import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -27,10 +26,10 @@ public class JwtService {
 
     public String generateToken(String username) {
         return Jwts.builder()
-                .subject(username)
-                .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
-                .signWith(SECRET_KEY, Jwts.SIG.HS256)
+                .subject(username)  // Reemplaza setSubject()
+                .issuedAt(new Date())  // Reemplaza setIssuedAt()
+                .expiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))  // Reemplaza setExpiration()
+                .signWith(SECRET_KEY, Jwts.SIG.HS256)  // Reemplaza signWith() y especifica el algoritmo
                 .compact();
     }
 
@@ -42,7 +41,7 @@ public class JwtService {
                     .parseSignedClaims(token);
             return true;
         } catch (JwtException | IllegalArgumentException e) {
-            return false;
+            return false; // Token inválido o expirado
         }
     }
 
