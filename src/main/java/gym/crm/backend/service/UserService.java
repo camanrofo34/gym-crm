@@ -3,6 +3,9 @@ package gym.crm.backend.service;
 import gym.crm.backend.domain.entities.User;
 import gym.crm.backend.domain.request.LoginRequest;
 import gym.crm.backend.repository.UserRepository;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,14 +14,14 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.stereotype.Service;
 
-import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -27,7 +30,7 @@ import java.util.concurrent.TimeUnit;
 public class UserService{
 
     private final UserRepository userRepository;
-    private final AuthenticationProvider authenticationProvider;
+    private final UserDetailsServiceImpl userDetailsService;
     private static final int MAX_ATTEMPTS = 3;
     private static final long BLOCK_TIME_MS = TimeUnit.MINUTES.toMillis(5);
 
@@ -35,9 +38,9 @@ public class UserService{
     private final ConcurrentHashMap<String, Long> blockTimestamps = new ConcurrentHashMap<>();
 
     @Autowired
-    public UserService(UserRepository userRepository, AuthenticationProvider authenticationProvider) {
+    public UserService(UserRepository userRepository, UserDetailsServiceImpl userDetailsService) {
+        this.userDetailsService = userDetailsService;
         this.userRepository = userRepository;
-        this.authenticationProvider = authenticationProvider;
     }
 
     public boolean login(LoginRequest loginRequest) {
@@ -50,9 +53,10 @@ public class UserService{
         }
 
         try {
-            Authentication authentication = authenticationProvider.authenticate(
-                    new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword())
-            );
+            UserDetails userDetails = userDetailsService.loadUserByUsername(loginRequest.getUsername());
+            UsernamePasswordAuthenticationToken authToken =
+                    new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+            SecurityContextHolder.getContext().setAuthentication(authToken);
 
             loginSucceeded(loginRequest.getUsername());
             log.info("Transaction Id: {}. User {} logged in successfully", transactionId, loginRequest.getUsername());
@@ -62,7 +66,6 @@ public class UserService{
             loginFailed(loginRequest.getUsername());
             log.error("Transaction Id: {}. Invalid credentials for user: {}", transactionId, loginRequest.getUsername());
             return false;
-
         } catch (AuthenticationException e) {
             loginFailed(loginRequest.getUsername());
             log.error("Transaction Id: {}. Authentication failed for user: {}. Reason: {}", transactionId, loginRequest.getUsername(), e.getMessage());
