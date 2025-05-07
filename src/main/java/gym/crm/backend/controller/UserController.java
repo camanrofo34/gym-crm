@@ -2,6 +2,7 @@ package gym.crm.backend.controller;
 
 import gym.crm.backend.domain.request.LoginRequest;
 import gym.crm.backend.service.JwtService;
+import gym.crm.backend.service.TokenBlacklistService;
 import gym.crm.backend.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -16,11 +17,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.authentication.AuthenticationProvider;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.UUID;
 
@@ -33,14 +36,17 @@ public class UserController {
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final TokenBlacklistService tokenBlacklistService;
 
     @Autowired
     public UserController(UserService userService,
                           PasswordEncoder passwordEncoder,
-                          JwtService jwtService) {
+                          JwtService jwtService,
+                          TokenBlacklistService tokenBlacklistService) {
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.tokenBlacklistService = tokenBlacklistService;
     }
 
     @PostMapping("/login")
@@ -101,10 +107,12 @@ public class UserController {
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     @PreAuthorize("hasRole('ROLE_TRAINER') or hasRole('ROLE_TRAINEE')")
-    public ResponseEntity<?> logout(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
-        if (authentication != null) {
-            new SecurityContextLogoutHandler().logout(request, response, authentication);
-        }
+    public ResponseEntity<?> logout(HttpServletRequest request, HttpServletResponse response) {
+        String transactionId = UUID.randomUUID().toString();
+        MDC.put("transactionId", transactionId);
+        log.info("Transaction ID: {} - Logout request", transactionId);
+        String token = request.getHeader("Authorization").substring(7);
+        tokenBlacklistService.blacklistToken(token);
         return ResponseEntity.ok("Logout successful");
     }
 }
