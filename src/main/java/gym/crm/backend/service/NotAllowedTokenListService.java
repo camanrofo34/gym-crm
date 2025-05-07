@@ -7,10 +7,10 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Component
-public class TokenBlacklistService {
+public class NotAllowedTokenListService {
     private final Set<String> blacklist = Collections.synchronizedSet(new HashSet<>());
 
-    public void blacklistToken(String token) {
+    public void notAllowToken(String token) {
         blacklist.add(token);
     }
 

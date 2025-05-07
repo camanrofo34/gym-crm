@@ -2,7 +2,7 @@ package gym.crm.backend.controller;
 
 import gym.crm.backend.domain.request.LoginRequest;
 import gym.crm.backend.service.JwtService;
-import gym.crm.backend.service.TokenBlacklistService;
+import gym.crm.backend.service.NotAllowedTokenListService;
 import gym.crm.backend.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -36,17 +36,17 @@ public class UserController {
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
-    private final TokenBlacklistService tokenBlacklistService;
+    private final NotAllowedTokenListService notAllowedTokenListService;
 
     @Autowired
     public UserController(UserService userService,
                           PasswordEncoder passwordEncoder,
                           JwtService jwtService,
-                          TokenBlacklistService tokenBlacklistService) {
+                          NotAllowedTokenListService notAllowedTokenListService) {
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
-        this.tokenBlacklistService = tokenBlacklistService;
+        this.notAllowedTokenListService = notAllowedTokenListService;
     }
 
     @PostMapping("/login")
@@ -112,7 +112,7 @@ public class UserController {
         MDC.put("transactionId", transactionId);
         log.info("Transaction ID: {} - Logout request", transactionId);
         String token = request.getHeader("Authorization").substring(7);
-        tokenBlacklistService.blacklistToken(token);
+        notAllowedTokenListService.notAllowToken(token);
         return ResponseEntity.ok("Logout successful");
     }
 }

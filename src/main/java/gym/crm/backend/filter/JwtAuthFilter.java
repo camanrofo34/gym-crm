@@ -1,7 +1,7 @@
 package gym.crm.backend.filter;
 
 import gym.crm.backend.service.JwtService;
-import gym.crm.backend.service.TokenBlacklistService;
+import gym.crm.backend.service.NotAllowedTokenListService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -22,9 +22,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
-    private final TokenBlacklistService tokenBlacklist;
+    private final NotAllowedTokenListService tokenBlacklist;
 
-    public JwtAuthFilter(JwtService jwtService, UserDetailsService userDetailsService, TokenBlacklistService tokenBlacklist) {
+    public JwtAuthFilter(JwtService jwtService, UserDetailsService userDetailsService, NotAllowedTokenListService tokenBlacklist) {
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
         this.tokenBlacklist = tokenBlacklist;
