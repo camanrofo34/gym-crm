@@ -43,7 +43,8 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/user/login", "/trainer/register", "/trainee/register").permitAll()
+                        .requestMatchers("/user/login", "/trainer/register", "/trainee/register", "/swagger-ui/*",
+                                "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/actuator/*").permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

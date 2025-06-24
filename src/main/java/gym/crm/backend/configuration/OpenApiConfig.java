@@ -1,20 +1,16 @@
 package gym.crm.backend.configuration;
 
-import io.swagger.v3.oas.models.OpenAPI;
-import io.swagger.v3.oas.models.info.Info;
-import org.springframework.context.annotation.Bean;
+import io.swagger.v3.oas.annotations.OpenAPIDefinition;
+import io.swagger.v3.oas.annotations.info.Info;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
+@OpenAPIDefinition(
+        info = @Info(
+                title = "Gym CRM API",
+                version = "1.0",
+                description = "API for managing gym memberships, trainers, and trainees."
+        )
+)
 public class OpenApiConfig {
-
-    @Bean
-    public OpenAPI customOpenAPI() {
-        return new OpenAPI()
-                .info(new Info()
-                        .title("Gym-CRM RestAPI")
-                        .version("1.0")
-                        .description("API for the management of" +
-                                " a gym's customers, trainers, and training sessions."));
-    }
 }
