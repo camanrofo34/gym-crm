@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.ArrayList;
 
 @Service
 @Slf4j
@@ -34,11 +35,8 @@ public class TrainerWorkloadServiceImpl implements TrainerWorkloadService {
         String month = String.format("%02d", localDate.getMonthValue());
 
         TrainerWorkloadSummary trainer = trainerRepo.findById(username).orElseGet(() -> {
-            TrainerWorkloadSummary t = new TrainerWorkloadSummary();
-            t.setTrainerUsername(username);
-            t.setTrainerFirstName(request.getTrainerFirstName());
-            t.setTrainerLastName(request.getTrainerLastName());
-            t.setTrainerStatus(request.getIsActive());
+            TrainerWorkloadSummary t = new TrainerWorkloadSummary(username, request.getTrainerFirstName(),
+                    request.getTrainerLastName(), request.getIsActive(), new ArrayList<>());
             return trainerRepo.save(t);
         });
 

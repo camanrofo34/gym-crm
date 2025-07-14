@@ -21,17 +21,18 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
-@Setter
 public class YearlyWorkload {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Setter
     private String trainingYear;
 
     @ManyToOne
     @JoinColumn(name = "trainer_username")
+    @Setter
     private TrainerWorkloadSummary trainer;
 
     @OneToMany(mappedBy = "yearlyWorkload", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)

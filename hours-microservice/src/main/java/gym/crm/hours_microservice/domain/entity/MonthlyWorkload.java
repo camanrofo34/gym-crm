@@ -15,19 +15,21 @@ import lombok.Setter;
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
-@Setter
 public class MonthlyWorkload {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Setter
     private String trainignMonth;
 
+    @Setter
     private Double totalHours;
 
     @ManyToOne
     @JoinColumn(name = "yearly_workload_id")
+    @Setter
     private YearlyWorkload yearlyWorkload;
 }
 
