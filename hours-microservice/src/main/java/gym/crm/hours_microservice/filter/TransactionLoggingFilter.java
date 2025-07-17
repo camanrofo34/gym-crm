@@ -33,7 +33,7 @@ public class TransactionLoggingFilter extends OncePerRequestFilter {
 
         } finally {
             log.info("← Transaction END | URI: {} | TxId: {}",
-                    request.getRequestURI(), MDC.get("transactionId"));
+                    request.getRequestURI(), MDC.get("Transaction-Id"));
             MDC.clear();
         }
     }

@@ -1,5 +1,6 @@
 package gym.crm.hours_microservice.exception.handler;
 
+import gym.crm.hours_microservice.exception.types.forbidden.InvalidateTokenException;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
@@ -15,6 +16,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<String> handleIllegalArgument(IllegalArgumentException ex) {
         log.warn("Transaction ID: {} - Invalid request: {}", MDC.get("transactionId"), ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidateTokenException.class)
+    public ResponseEntity<String> handleInvalidateTokenException(InvalidateTokenException ex) {
+        log.warn("Transaction ID: {} - Invalid token: {}", MDC.get("transactionId"), ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ex.getMessage());
     }
 
     @ExceptionHandler(Exception.class)

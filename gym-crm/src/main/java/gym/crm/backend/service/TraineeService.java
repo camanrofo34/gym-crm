@@ -11,6 +11,7 @@ import gym.crm.backend.domain.response.UserCreationResponse;
 import gym.crm.backend.domain.response.trainee.TrainersTraineeResponse;
 import gym.crm.backend.exception.types.notFound.ProfileNotFoundException;
 import gym.crm.backend.integration.feign.TrainerWorkloadClient;
+import gym.crm.backend.messaging.producer.TrainerWorkloadMessageProducer;
 import gym.crm.backend.repository.TraineeRepository;
 import gym.crm.backend.repository.TrainerRepository;
 import gym.crm.backend.repository.TrainingRepository;
@@ -40,7 +41,7 @@ public class TraineeService {
     private final UserRepository userRepository;
     private final UserCredentialService userCredentialService;
     private final PasswordEncoder passwordEncoder;
-    private final TrainerWorkloadClient trainerWorkloadClient;
+    private final TrainerWorkloadMessageProducer trainerWorkloadMessageProducer;
 
     @Autowired
     public TraineeService(TraineeRepository traineeRepository,
@@ -48,14 +49,15 @@ public class TraineeService {
                           UserRepository userRepository,
                           UserCredentialService userCredentialService,
                           PasswordEncoder passwordEncoder,
-                          TrainingRepository trainingRepository, TrainerWorkloadClient trainerWorkloadClient) {
+                          TrainingRepository trainingRepository,
+                          TrainerWorkloadMessageProducer trainerWorkloadMessageProducer) {
         this.traineeRepository = traineeRepository;
         this.trainerRepository = trainerRepository;
         this.userRepository = userRepository;
         this.userCredentialService = userCredentialService;
         this.passwordEncoder = passwordEncoder;
         this.trainingRepository = trainingRepository;
-        this.trainerWorkloadClient = trainerWorkloadClient;
+        this.trainerWorkloadMessageProducer = trainerWorkloadMessageProducer;
     }
 
     @Transactional
@@ -126,7 +128,7 @@ public class TraineeService {
                     training.getTrainingDuration(),
                     ActionType.DELETE
             );
-            trainerWorkloadClient.sendTrainerWorkload(request, getCurrentBearerToken(), transactionId);
+            trainerWorkloadMessageProducer.sendTrainerWorkloadRequest(request, transactionId, getCurrentBearerToken());
         }
 
         for (Trainer trainer : trainee.getTrainers()) {

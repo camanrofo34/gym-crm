@@ -21,6 +21,7 @@ public class JwtService {
     }
 
     public boolean validateToken(String token) {
+        token = token.replace("Bearer ", "");
         try {
             Jwts.parser()
                     .verifyWith(SECRET_KEY)
