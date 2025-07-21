@@ -9,7 +9,7 @@ import gym.crm.backend.domain.response.trainingType.TrainingTypeResponse;
 import gym.crm.backend.exception.types.notFound.TrainingTypeNotFoundException;
 import gym.crm.backend.exception.types.runtime.DateParsingFailedException;
 import gym.crm.backend.exception.types.notFound.ProfileNotFoundException;
-import gym.crm.backend.integration.feign.TrainerWorkloadClient;
+import gym.crm.backend.messaging.producer.TrainerWorkloadMessageProducer;
 import gym.crm.backend.repository.TraineeRepository;
 import gym.crm.backend.repository.TrainerRepository;
 import gym.crm.backend.repository.TrainingRepository;
@@ -21,7 +21,6 @@ import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -38,19 +37,19 @@ public class TrainingService {
     private final TrainerRepository trainerRepository;
     private final TraineeRepository traineeRepository;
     private final TrainingTypeRepository trainingTypeRepository;
-    private final TrainerWorkloadClient trainerWorkloadClient;
+    private final TrainerWorkloadMessageProducer trainerWorkloadMessageProducer;
 
     @Autowired
     public TrainingService(TrainingRepository trainingRepository,
                            TrainerRepository trainerRepository,
                            TraineeRepository traineeRepository,
                            TrainingTypeRepository trainingTypeRepository,
-                           TrainerWorkloadClient trainerWorkloadClient) {
+                           TrainerWorkloadMessageProducer trainerWorkloadMessageProducer) {
         this.trainingRepository = trainingRepository;
         this.trainerRepository = trainerRepository;
         this.traineeRepository = traineeRepository;
         this.trainingTypeRepository = trainingTypeRepository;
-        this.trainerWorkloadClient = trainerWorkloadClient;
+        this.trainerWorkloadMessageProducer = trainerWorkloadMessageProducer;
     }
 
     public Page<TrainingTrainersResponse> getTrainerTrainings(String username, String fromDate, String toDate, String traineeName, Pageable pageable){
@@ -136,18 +135,18 @@ public class TrainingService {
 
         trainingRepository.save(trainingEntity);
 
-        TrainerWorkloadRequest trainerWorkloadRequest = new TrainerWorkloadRequest();
-        trainerWorkloadRequest.setTrainerUsername(trainerUsername);
-        trainerWorkloadRequest.setTrainerFirstName(trainer.getUser().getFirstName());
-        trainerWorkloadRequest.setTrainerLastName(trainer.getUser().getLastName());
-        trainerWorkloadRequest.setTrainingDate(trainingEntity.getTrainingDate());
-        trainerWorkloadRequest.setTrainingDuration(trainingEntity.getTrainingDuration());
-        trainerWorkloadRequest.setIsActive(trainer.getUser().getIsActive());
-        trainerWorkloadRequest.setActionType(ActionType.ADD);
+        TrainerWorkloadRequest trainerWorkloadRequest = new TrainerWorkloadRequest(
+                trainerUsername,
+                trainer.getUser().getFirstName(),
+                trainer.getUser().getLastName(),
+                trainer.getUser().getIsActive(),
+                trainingEntity.getTrainingDate(),
+                trainingEntity.getTrainingDuration(),
+                ActionType.ADD
+        );
 
         String token = getCurrentBearerToken();
-        trainerWorkloadClient.sendTrainerWorkload(trainerWorkloadRequest, token, transactionId);
-
+        trainerWorkloadMessageProducer.sendTrainerWorkloadRequest(trainerWorkloadRequest, transactionId, token );
     }
 
     public Page<TrainingTypeResponse> getTrainingTypes(Pageable pageable) {
