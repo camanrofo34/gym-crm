@@ -1,5 +1,6 @@
 package gym.crm.hours_microservice.messaging.consumer;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import gym.crm.hours_microservice.domain.request.TrainerWorkloadRequest;
 import gym.crm.hours_microservice.exception.types.forbidden.InvalidateTokenException;

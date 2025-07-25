@@ -1,35 +1,26 @@
 package gym.crm.hours_microservice.domain.entity;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-@Entity
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
 public class MonthlyWorkload {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Setter
+    @NotBlank
+    private String trainingMonth;
 
     @Setter
-    private String trainignMonth;
-
-    @Setter
+    @NotNull
+    @DecimalMin(value = "0.0", inclusive = true)
     private Double totalHours;
-
-    @ManyToOne
-    @JoinColumn(name = "yearly_workload_id")
-    @Setter
-    private YearlyWorkload yearlyWorkload;
 }
+
 

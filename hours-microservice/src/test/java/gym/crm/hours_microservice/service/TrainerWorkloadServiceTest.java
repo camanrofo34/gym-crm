@@ -5,41 +5,42 @@ import gym.crm.hours_microservice.domain.entity.MonthlyWorkload;
 import gym.crm.hours_microservice.domain.entity.TrainerWorkloadSummary;
 import gym.crm.hours_microservice.domain.entity.YearlyWorkload;
 import gym.crm.hours_microservice.domain.request.TrainerWorkloadRequest;
-import gym.crm.hours_microservice.repository.MonthlyWorkloadRepository;
 import gym.crm.hours_microservice.repository.TrainerWorkloadSummaryRepository;
-import gym.crm.hours_microservice.repository.YearlyWorkloadRepository;
 import gym.crm.hours_microservice.service.implementation.TrainerWorkloadServiceImpl;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.annotation.Import;
 
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import(TrainerWorkloadServiceImpl.class)
+@ExtendWith(MockitoExtension.class)
 class TrainerWorkloadServiceTest {
 
-    @Autowired
+    @InjectMocks
     private TrainerWorkloadServiceImpl service;
 
-    @Autowired
+    @Mock
     private TrainerWorkloadSummaryRepository summaryRepository;
 
-    @Autowired
-    private YearlyWorkloadRepository yearlyRepository;
-
-    @Autowired
-    private MonthlyWorkloadRepository monthlyRepository;
-
     private final ZoneId zoneId = ZoneId.systemDefault();
+
+    @BeforeEach
+    void cleanUp(){
+    }
 
     @Test
     @DisplayName("Should add training duration for a new trainer and month")
@@ -53,18 +54,24 @@ class TrainerWorkloadServiceTest {
                 trainingDate, 2.5, ActionType.ADD
         );
 
+        Mockito.when(summaryRepository.findByTrainerUsername("john.doe")).thenReturn(Optional.empty());
+
+        ArgumentCaptor<TrainerWorkloadSummary> captor = ArgumentCaptor.forClass(TrainerWorkloadSummary.class);
+        Mockito.when(summaryRepository.save(captor.capture())).thenAnswer(invocation -> invocation.getArgument(0));
+
         service.updateTrainerWorkload(request);
 
-        Optional<TrainerWorkloadSummary> summaryOpt = summaryRepository.findById("john.doe");
-        assertThat(summaryOpt).isPresent();
+        TrainerWorkloadSummary savedSummary = captor.getValue();
 
-        Optional<YearlyWorkload> yearly = yearlyRepository.findByTrainerTrainerUsernameAndTrainingYear("john.doe", year);
-        assertThat(yearly).isPresent();
-
-        Optional<MonthlyWorkload> monthly = monthlyRepository.findByYearlyWorkloadIdAndTrainignMonth(yearly.get().getId(), month);
-        assertThat(monthly).isPresent();
-        assertThat(monthly.get().getTotalHours()).isEqualTo(2.5);
+        assertThat(savedSummary.getTrainerFirstName()).isEqualTo("John");
+        assertThat(savedSummary.getTrainerLastName()).isEqualTo("Doe");
+        assertThat(savedSummary.getYearlyWorkloads()).hasSize(1);
+        assertThat(savedSummary.getYearlyWorkloads().getFirst().getTrainingYear()).isEqualTo(year);
+        assertThat(savedSummary.getYearlyWorkloads().getFirst().getMonthlyWorkloads()).hasSize(1);
+        assertThat(savedSummary.getYearlyWorkloads().getFirst().getMonthlyWorkloads().getFirst().getTrainingMonth()).isEqualTo(month);
+        assertThat(savedSummary.getYearlyWorkloads().getFirst().getMonthlyWorkloads().getFirst().getTotalHours()).isEqualTo(2.5);
     }
+
 
     @Test
     @DisplayName("Should accumulate training duration for the same trainer and month")
@@ -76,16 +83,31 @@ class TrainerWorkloadServiceTest {
         TrainerWorkloadRequest first = new TrainerWorkloadRequest("jane.smith", "Jane", "Smith", true, now, 1.0, ActionType.ADD);
         TrainerWorkloadRequest second = new TrainerWorkloadRequest("jane.smith", "Jane", "Smith", true, now, 3.0, ActionType.ADD);
 
+        TrainerWorkloadSummary existingSummary = new TrainerWorkloadSummary("jane.smith", "Jane", "Smith", true,
+                List.of(new YearlyWorkload(year, List.of(new MonthlyWorkload(month, 0.0))))
+        );
+
+        Mockito.when(summaryRepository.findByTrainerUsername("jane.smith"))
+                .thenReturn(Optional.of(existingSummary));
+
+        ArgumentCaptor<TrainerWorkloadSummary> captor = ArgumentCaptor.forClass(TrainerWorkloadSummary.class);
+        Mockito.when(summaryRepository.save(captor.capture()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
         service.updateTrainerWorkload(first);
         service.updateTrainerWorkload(second);
 
-        Optional<YearlyWorkload> yearly = yearlyRepository.findByTrainerTrainerUsernameAndTrainingYear("jane.smith", year);
-        assertThat(yearly).isPresent();
+        TrainerWorkloadSummary saved = captor.getValue();
 
-        Optional<MonthlyWorkload> monthly = monthlyRepository.findByYearlyWorkloadIdAndTrainignMonth(yearly.get().getId(), month);
-        assertThat(monthly).isPresent();
-        assertThat(monthly.get().getTotalHours()).isEqualTo(4.0);
+        assertThat(saved.getTrainerFirstName()).isEqualTo("Jane");
+        assertThat(saved.getTrainerLastName()).isEqualTo("Smith");
+        assertThat(saved.getYearlyWorkloads()).hasSize(1);
+        assertThat(saved.getYearlyWorkloads().getFirst().getTrainingYear()).isEqualTo(year);
+        assertThat(saved.getYearlyWorkloads().getFirst().getMonthlyWorkloads()).hasSize(1);
+        assertThat(saved.getYearlyWorkloads().getFirst().getMonthlyWorkloads().getFirst().getTrainingMonth()).isEqualTo(month);
+        assertThat(saved.getYearlyWorkloads().getFirst().getMonthlyWorkloads().getFirst().getTotalHours()).isEqualTo(4.0);
     }
+
 
     @Test
     @DisplayName("Should subtract training duration and remove month if duration becomes zero or less")
@@ -97,14 +119,33 @@ class TrainerWorkloadServiceTest {
         TrainerWorkloadRequest add = new TrainerWorkloadRequest("alex.lee", "Alex", "Lee", true, now, 2.0, ActionType.ADD);
         TrainerWorkloadRequest delete = new TrainerWorkloadRequest("alex.lee", "Alex", "Lee", true, now, 2.0, ActionType.DELETE);
 
+        ArrayList<MonthlyWorkload> monthlyWorkload = new ArrayList<>();
+        monthlyWorkload.add(new MonthlyWorkload(month, 0.0));
+        TrainerWorkloadSummary existingSummary = new TrainerWorkloadSummary("alex.lee", "Alex", "Lee", true,
+                List.of(
+                        new YearlyWorkload(year, monthlyWorkload)
+                )
+        );
+
+        Mockito.when(summaryRepository.findByTrainerUsername("alex.lee"))
+                .thenReturn(Optional.of(existingSummary));
+
+        ArgumentCaptor<TrainerWorkloadSummary> captor = ArgumentCaptor.forClass(TrainerWorkloadSummary.class);
+        Mockito.when(summaryRepository.save(captor.capture()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
         service.updateTrainerWorkload(add);
         service.updateTrainerWorkload(delete);
 
-        Optional<YearlyWorkload> yearly = yearlyRepository.findByTrainerTrainerUsernameAndTrainingYear("alex.lee", year);
-        assertThat(yearly).isPresent();
-        Optional<MonthlyWorkload> monthly = monthlyRepository.findByYearlyWorkloadIdAndTrainignMonth(yearly.get().getId(), month);
-        assertThat(monthly).isEmpty();
+        TrainerWorkloadSummary saved = captor.getValue();
+
+        assertThat(saved.getTrainerFirstName()).isEqualTo("Alex");
+        assertThat(saved.getTrainerLastName()).isEqualTo("Lee");
+        assertThat(saved.getYearlyWorkloads()).hasSize(1);
+        assertThat(saved.getYearlyWorkloads().getFirst().getTrainingYear()).isEqualTo(year);
+        assertThat(saved.getYearlyWorkloads().getFirst().getMonthlyWorkloads()).isEmpty();
     }
+
 
     @Test
     @DisplayName("Should subtract training duration and update month if duration remains positive")
@@ -116,15 +157,30 @@ class TrainerWorkloadServiceTest {
         TrainerWorkloadRequest add = new TrainerWorkloadRequest("maria.garcia", "Maria", "Garcia", true, now, 5.0, ActionType.ADD);
         TrainerWorkloadRequest delete = new TrainerWorkloadRequest("maria.garcia", "Maria", "Garcia", true, now, 2.0, ActionType.DELETE);
 
+        TrainerWorkloadSummary existing = new TrainerWorkloadSummary("maria.garcia", "Maria", "Garcia", true,
+                List.of(
+                        new YearlyWorkload(year, List.of(new MonthlyWorkload(month, 0.0)))
+                )
+        );
+
+        Mockito.when(summaryRepository.findByTrainerUsername("maria.garcia"))
+                .thenReturn(Optional.of(existing));
+
+        ArgumentCaptor<TrainerWorkloadSummary> captor = ArgumentCaptor.forClass(TrainerWorkloadSummary.class);
+        Mockito.when(summaryRepository.save(captor.capture()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
         service.updateTrainerWorkload(add);
         service.updateTrainerWorkload(delete);
 
-        Optional<YearlyWorkload> yearly = yearlyRepository.findByTrainerTrainerUsernameAndTrainingYear("maria.garcia", year);
-        assertThat(yearly).isPresent();
+        TrainerWorkloadSummary saved = captor.getValue();
 
-        Optional<MonthlyWorkload> monthly = monthlyRepository.findByYearlyWorkloadIdAndTrainignMonth(yearly.get().getId(), month);
-        assertThat(monthly).isPresent();
-        assertThat(monthly.get().getTotalHours()).isEqualTo(3.0);
+        assertThat(saved.getTrainerFirstName()).isEqualTo("Maria");
+        assertThat(saved.getTrainerLastName()).isEqualTo("Garcia");
+        assertThat(saved.getYearlyWorkloads()).hasSize(1);
+        assertThat(saved.getYearlyWorkloads().getFirst().getTrainingYear()).isEqualTo(year);
+        assertThat(saved.getYearlyWorkloads().getFirst().getMonthlyWorkloads()).hasSize(1);
+        assertThat(saved.getYearlyWorkloads().getFirst().getMonthlyWorkloads().getFirst().getTrainingMonth()).isEqualTo(month);
+        assertThat(saved.getYearlyWorkloads().getFirst().getMonthlyWorkloads().getFirst().getTotalHours()).isEqualTo(3.0);
     }
-
 }
