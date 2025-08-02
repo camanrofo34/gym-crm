@@ -1,14 +1,15 @@
 package gym.crm.hours_microservice.domain.entity;
 
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.FetchType;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,19 +18,24 @@ import java.util.List;
 @NoArgsConstructor
 @Getter
 @Setter
-@Entity
+@Document(collection = "trainer_workload_summary")
+@CompoundIndex(name = "first_last_name_index", def = "{'trainerFirstName': 1, 'trainerLastName': 1}")
 public class TrainerWorkloadSummary {
 
     @Id
+    @NotBlank
     private String trainerUsername;
 
+    @NotBlank
     private String trainerFirstName;
 
+    @NotBlank
     private String trainerLastName;
 
+    @NotNull
     private Boolean trainerStatus;
 
-    @OneToMany(mappedBy = "trainer", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
-    private List<YearlyWorkload> yearlyWorkloads = new ArrayList<>();
+    private List<@Valid YearlyWorkload> yearlyWorkloads = new ArrayList<>();
 }
+
 
