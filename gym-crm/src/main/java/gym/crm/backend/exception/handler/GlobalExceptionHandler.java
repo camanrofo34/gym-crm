@@ -1,5 +1,6 @@
 package gym.crm.backend.exception.handler;
 
+import gym.crm.backend.exception.types.forbidden.ForbidenException;
 import gym.crm.backend.exception.types.notFound.ProfileNotFoundException;
 import gym.crm.backend.exception.types.notFound.TrainingTypeNotFoundException;
 import gym.crm.backend.exception.types.notFound.UserNotFoundException;
@@ -87,6 +88,17 @@ public class GlobalExceptionHandler {
     public ResponseEntity<String> handleParseException(ParseException ex) {
         log.error("Transaction ID: {} - Parse exception", MDC.get("transactionId"), ex);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(ForbidenException.class)
+    @Operation(summary = "Handle Forbidden Exception",
+            description = "Handles exceptions when access is forbidden.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "403", description = "Forbidden access")
+    })
+    public ResponseEntity<String> handleForbiddenException(ForbidenException ex) {
+        log.error("Transaction ID: {} - Forbidden access", MDC.get("transactionId"), ex);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ex.getMessage());
     }
 
     @ExceptionHandler(Exception.class)
