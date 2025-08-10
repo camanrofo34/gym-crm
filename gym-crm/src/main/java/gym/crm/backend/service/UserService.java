@@ -2,6 +2,7 @@ package gym.crm.backend.service;
 
 import gym.crm.backend.domain.entities.User;
 import gym.crm.backend.domain.request.LoginRequest;
+import gym.crm.backend.exception.types.forbidden.ForbidenException;
 import gym.crm.backend.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -40,7 +41,7 @@ public class UserService{
 
         if (isBlocked(loginRequest.getUsername())) {
             log.error("Transaction Id: {}. User {} is blocked", transactionId, loginRequest.getUsername());
-            throw new RuntimeException("User is blocked");
+            throw new ForbidenException("User is blocked");
         }
 
         try {

@@ -1,18 +1,21 @@
 @getTrainingTypes
-Feature: Get Training Types
+Feature: As a trainee, I want to view available training types so that I can choose the right one for my needs.
 
-  Scenario: Successfully get training types
+  Scenario: Successfully retrieving all training types
     Given the following training types exist:
-      | id | name          |
-      | 1  | Basic Training|
-      | 2  | Advanced Training|
-    When I send a GET request to "/training/trainingTypes"
-    Then the response status code should be 200
-    And the response should contain the following training types:
       | id | name              |
       | 1  | Basic Training    |
-      | 2  | Advanced Training  |
+      | 2  | Advanced Training |
+    When the trainee requests all training types
+    Then the response status should be 200
+    And the response should contain the training type with ID "1" and name "Basic Training"
+    And the response should contain the training type with ID "2" and name "Advanced Training"
 
-  Scenario: Unauthorized access to get training types
-    When I send a GET request to "/training/trainingTypes" without authorization
-    Then the response status code should be 403
+  Scenario: Unsuccessfully retrieving due to unauthorized access
+    Given the following training types exist:
+      | id | name              |
+      | 1  | Basic Training    |
+      | 2  | Advanced Training |
+    When the trainee requests all training types but the trainee has not logged in
+    Then the response status should be 403
+    And the response message should contain "Unauthorized access"

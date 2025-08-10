@@ -1,14 +1,17 @@
 package gym.crm.backend.controller.training;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import gym.crm.backend.controller.TrainingController;
 import gym.crm.backend.domain.request.TrainingCreationRequest;
+import gym.crm.backend.domain.response.trainer.TrainerUpdateResponse;
 import gym.crm.backend.domain.response.trainingType.TrainingTypeResponse;
 import gym.crm.backend.exception.handler.GlobalExceptionHandler;
 import gym.crm.backend.exception.types.forbidden.ForbidenException;
 import gym.crm.backend.exception.types.notFound.UserNotFoundException;
 import gym.crm.backend.service.TrainingService;
 import io.cucumber.java.Before;
+import io.cucumber.java.ParameterType;
 import io.cucumber.java.en.*;
 import io.cucumber.spring.CucumberContextConfiguration;
 import io.micrometer.core.instrument.Counter;
@@ -24,11 +27,15 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.data.web.PagedResourcesAssembler;
+import org.springframework.hateoas.EntityModel;
+import org.springframework.hateoas.PagedModel;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.*;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -55,6 +62,8 @@ public class StepDefinitions {
     private List<TrainingTypeResponse> trainingTypes;
     private TrainingCreationRequest trainingCreationRequest;
     private boolean isAuthenticated;
+    private String trainerId;
+    private String traineeId;
     @Mock
     private Timer mockTimer;
     @Mock
@@ -75,6 +84,11 @@ public class StepDefinitions {
         isAuthenticated = true;
     }
 
+    @ParameterType(".*")
+    public Date isoDate(String dateStr) {
+        return Date.from(LocalDate.parse(dateStr).atStartOfDay(ZoneId.systemDefault()).toInstant());
+    }
+
     // --- Get Training Types ---
     @Given("the following training types exist:")
     public void theFollowingTrainingTypesExist(io.cucumber.datatable.DataTable dataTable) {
@@ -83,7 +97,7 @@ public class StepDefinitions {
         for (Map<String, String> row : rows) {
             TrainingTypeResponse type = new TrainingTypeResponse(
                     row.get("name"),
-                    Long.getLong(row.get("id"))
+                    Long.valueOf(row.get("id"))
             );
             trainingTypes.add(type);
         }
@@ -91,82 +105,59 @@ public class StepDefinitions {
         when(trainingService.getTrainingTypes(any())).thenReturn(page);
     }
 
-    @When("I send a GET request to {string}")
-    public void iSendAGetRequestTo(String endpoint) throws Exception {
-        result = mockMvc.perform(get(endpoint)
-                .param("sort", "name,asc")
-                .param("page", "0")
-                .param("size", "10")
-                .accept(MediaType.APPLICATION_JSON)
-        ).andReturn();
+    @When("the trainee requests all training types")
+    public void theTraineeRequestAllTheTrainingTypes() throws Exception {
+        result = mockMvc.perform(get("/training/trainingTypes")
+                .contentType(MediaType.APPLICATION_JSON))
+                .andReturn();
     }
 
-    @When("I send a GET request to {string} without authorization")
-    public void iSendAGetRequestToWithoutAuthorization(String endpoint) throws Exception {
-        doThrow(new ForbidenException("Forbidden")).when(trainingService).getTrainingTypes(any());
-        result = mockMvc.perform(get(endpoint)).andReturn();
+    @When("the trainee requests all training types but the trainee has not logged in")
+    public void theTraineeRequestAllTheTrainingTypesButNotLoggedIn() throws Exception {
+        isAuthenticated = false;
+        doThrow(new ForbidenException("Unauthorized access")).when(trainingService).getTrainingTypes(any());
+        result = mockMvc.perform(get("/training/trainingTypes")
+                .contentType(MediaType.APPLICATION_JSON))
+                .andReturn();
     }
 
-    @Then("the response status code should be {int}")
-    public void theResponseStatusCodeShouldBe(int status) {
-        Assertions.assertEquals(status, result.getResponse().getStatus());
+    @Then("the response should contain the training type with ID {string} and name {string}")
+    public void theResponseShouldContainTrainingTypeWithIdAndName(String id, String name) throws Exception {
+        Assertions.assertEquals(200, result.getResponse().getStatus());
+        PagedModel<EntityModel<TrainingTypeResponse>> responseTypes =
+                objectMapper.readValue(
+                        result.getResponse().getContentAsString(),
+                        new TypeReference<PagedModel<EntityModel<TrainingTypeResponse>>>() {}
+                );
+        boolean found = responseTypes.getContent().stream()
+                .anyMatch(type -> type.getContent().getTrainingTypeId().equals(Long.valueOf(id)) && type.getContent().getTrainingTypeName().equals(name));
+        Assertions.assertTrue(found, "Training type with ID " + id + " and name " + name + " not found in response.");
     }
 
-    @And("the response should contain the following training types:")
-    public void theResponseShouldContainTheFollowingTrainingTypes(io.cucumber.datatable.DataTable dataTable) throws Exception {
+    @And("the response message should contain {string}")
+    public void theResponseMessageShouldContain(String message) throws  Exception {
         String responseContent = result.getResponse().getContentAsString();
-        Assertions.assertTrue(responseContent.contains("Basic Training"));
-        Assertions.assertTrue(responseContent.contains("Advanced Training"));
+        Assertions.assertTrue(responseContent.contains(message), "Response does not contain expected message: " + message);
     }
 
     // --- Register Training ---
-    @Given("a training type with ID {string} exists with name {string}")
-    public void aTrainingTypeWithIdExistsWithName(String id, String name) {
+    @And("the trainee with ID {string} exists")
+    public void theTraineeWithIdExists(String traineeId) {
+        this.traineeId = traineeId;
+    }
+    @And("the trainer with ID {string} exists")
+    public void theTrainerWithIdExists(String trainerId) {
+        this.trainerId = trainerId;
     }
 
-    @Given("a user with ID {string} exists with first name {string}, last name {string}")
-    public void aUserWithIdExists(String userId, String firstName, String lastName) {
-    }
-
-    @When("an authenticated user tries to register for the training type with ID {string} for user {string}")
-    public void authenticatedUserRegistersTraining(String trainingTypeId, String userId) throws Exception {
-        isAuthenticated = true;
-        trainingCreationRequest.setTrainingDate(new Date());
-        trainingCreationRequest.setTrainingDuration(1.0);
+    @When("the trainee with ID {string} registers for training type {string}, with date {isoDate}, trainer ID {string} and duration {double} minutes")
+    public void theTraineeWithIdRegistersForTrainingTypeWithDateTrainerIdAndDuration(String traineeId, String trainingTypeId, Date date, String trainerId, double duration) throws Exception {
+        trainingCreationRequest.setTraineeUsername(traineeId);
+        trainingCreationRequest.setTrainingDate(date);
+        trainingCreationRequest.setTrainerUsername(trainerId);
+        trainingCreationRequest.setTrainingDuration(duration);
         trainingCreationRequest.setTrainingName(trainingTypeId);
-        trainingCreationRequest.setTrainerUsername("trainerUsername");
-        trainingCreationRequest.setTraineeUsername(userId);
-        doNothing().when(trainingService).createTraining(any(TrainingCreationRequest.class));
-        result = mockMvc.perform(post("/training/register")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(trainingCreationRequest)))
-                .andReturn();
-    }
 
-    @When("an authenticated user tries to register for the training type with ID {string} for non-existent user {string}")
-    public void authenticatedUserRegistersTrainingNonExistentUser(String trainingTypeId, String userId) throws Exception {
-        isAuthenticated = true;
-        trainingCreationRequest.setTrainingDate(new Date());
-        trainingCreationRequest.setTrainingDuration(1.0);
-        trainingCreationRequest.setTrainingName(trainingTypeId);
-        trainingCreationRequest.setTrainerUsername("trainerUsername");
-        trainingCreationRequest.setTraineeUsername(userId);
-        doThrow(new UserNotFoundException("User not found")).when(trainingService).createTraining(any(TrainingCreationRequest.class));
-        result = mockMvc.perform(post("/training/register")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(trainingCreationRequest)))
-                .andReturn();
-    }
-
-    @When("a user without proper authorization tries to register for the training type with ID {string}")
-    public void unauthorizedUserRegistersTraining(String trainingTypeId) throws Exception {
-        isAuthenticated = false;
-        trainingCreationRequest.setTrainingDate(new Date());
-        trainingCreationRequest.setTrainingDuration(1.0);
-        trainingCreationRequest.setTrainingName(trainingTypeId);
-        trainingCreationRequest.setTrainerUsername("trainerUsername");
-        trainingCreationRequest.setTraineeUsername("userId");
-        doThrow(new ForbidenException("Forbidden")).when(trainingService).createTraining(any(TrainingCreationRequest.class));
         result = mockMvc.perform(post("/training/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(trainingCreationRequest)))

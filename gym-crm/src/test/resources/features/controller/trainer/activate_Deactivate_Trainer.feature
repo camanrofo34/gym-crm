@@ -1,19 +1,26 @@
 @activateDeactivateTrainer
-Feature: Activate/Deactivate Trainer
+Feature: As a trainer, I want to be able to activate or deactivate my account so that I can control my participation in the gym's programs.
 
-  Scenario: Successful trainer activation
-    Given a trainer with ID "john.doe" exists with first name "John", last name "Doe"
-    When a authenticated user tries to activate the trainer with ID "john.doe"
-    Then the activation response status should be 200
-    And the trainer should be active
+  Scenario: Successful activation of a trainer account.
+    Given a trainer with ID "jane.smith" exists in the system
+    When a trainer with ID "jane.smith" tries to activate their account
+    Then the response status should be 200
+    And the trainer with ID "jane.smith" should be active
 
-  Scenario: Successful trainer deactivation
-    Given a trainer with ID "john.doe" exists with first name "John", last name "Doe"
-    When a authenticated user tries to deactivate the trainer with ID "john.doe"
-    Then the deactivation response status should be 200
-    And the trainer should be inactive
+  Scenario: Successful deactivation of a trainer account
+    Given a trainer with ID "jane.smith" exists in the system
+    When a trainer with ID "jane.smith" tries to deactivate their account
+    Then the response status should be 200
+    And the trainer with ID "jane.smith" should be inactive
 
-  Scenario: Unauthorized access to activate/deactivate trainer
-    Given a trainer with ID "john.doe" exists with first name "John", last name "Doe"
-    When a user without proper authorization tries to activate deactivate the trainer with ID "john.doe"
+  Scenario: Unauthorized access to try to activate a trainer account
+    Given a trainer with ID "jane.smith" exists in the system
+    When a trainer with ID "jane.smith" tries to activate their account but the trainer has not login before
     Then the response status should be 403
+    And the trainer with ID "jane.smith" should be inactive
+
+  Scenario: Unauthorized access to deactivate trainer
+    Given a trainer with ID "jane.smith" exists in the system
+    When a trainer with ID "jane.smith" tries to deactivate their account but the trainer has not login before
+    Then the response status should be 403
+    And the trainer with ID "jane.smith" should be active

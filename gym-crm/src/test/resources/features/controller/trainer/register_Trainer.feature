@@ -1,10 +1,17 @@
 @registerTrainer
-Feature: Register a new Trainer
+Feature: As a new trainer, I want to register so that I can start managing my trainings.
 
-  Scenario: Successful trainer registration
-    When a user tries to register a trainer with first name "john", last name "doe" and specialization with id 1
+  Scenario: Successful registration of a new trainer
+    When the new trainer registers with first name "Alice", last name "Johnson" and specialization "Pilates"
     Then the response status should be 201
+    And the response should contain as username "alice.johnson"
 
-  Scenario: Unsuccessful trainer registration due to missing first name
-    When a user tries to register a trainer with last name "doe" and specialization with id 1
-    Then the response status should be 500
+  Scenario: Unsuccessful registration due to missing first name
+    When the new trainer registers with first name "", last name "Johnson" and specialization "Pilates"
+    Then the response status should be 400
+    And the response message should contain "{\"firstName\":\"Firstname cannot be blank\"}"
+
+  Scenario: Unsuccessful registration due to specialization not found
+    When the new trainer registers with first name "Alice", last name "Johnson" and specialization "UnknownSpecialization"
+    Then the response status should be 404
+    And the response message should contain "Specialization not found"

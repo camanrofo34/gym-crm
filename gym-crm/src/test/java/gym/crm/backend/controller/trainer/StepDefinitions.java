@@ -1,5 +1,6 @@
 package gym.crm.backend.controller.trainer;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import gym.crm.backend.controller.TrainerController;
 import gym.crm.backend.domain.request.TrainerCreationRequest;
@@ -10,7 +11,8 @@ import gym.crm.backend.domain.response.trainer.TrainerUpdateResponse;
 import gym.crm.backend.domain.response.training.TrainingTrainersResponse;
 import gym.crm.backend.exception.handler.GlobalExceptionHandler;
 import gym.crm.backend.exception.types.forbidden.ForbidenException;
-import gym.crm.backend.exception.types.notFound.UserNotFoundException;
+import gym.crm.backend.exception.types.notFound.ProfileNotFoundException;
+import gym.crm.backend.exception.types.notFound.TrainingTypeNotFoundException;
 import gym.crm.backend.service.TrainerService;
 import gym.crm.backend.service.TrainingService;
 import gym.crm.backend.service.UserService;
@@ -28,6 +30,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.data.web.PagedResourcesAssembler;
+import org.springframework.hateoas.EntityModel;
+import org.springframework.hateoas.PagedModel;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -86,28 +90,12 @@ public class StepDefinitions {
         isAuthorized = true;
     }
 
-    // --- Register Trainer ---
-    @When("a user tries to register a trainer with first name {string}, last name {string} and specialization with id {long}")
-    public void userRegistersTrainer(String firstName, String lastName, long specializationId) throws Exception {
-        trainerCreationRequest.setFirstName(firstName);
-        trainerCreationRequest.setLastName(lastName);
-        trainerCreationRequest.setTrainingTypeId(specializationId);
-        when(trainerService.createTrainer(any(TrainerCreationRequest.class))).thenReturn(new UserCreationResponse("john.doe", "1234"));
-        result = mockMvc.perform(post("/trainer/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(trainerCreationRequest)))
-                .andReturn();
-    }
-
-    @When("a user tries to register a trainer with last name {string} and specialization with id {long}")
-    public void userRegistersTrainerMissingFirstName(String lastName, long specializationId) throws Exception {
-        trainerCreationRequest.setLastName(lastName);
-        trainerCreationRequest.setTrainingTypeId(specializationId);
-        when(trainerService.createTrainer(any(TrainerCreationRequest.class))).thenReturn(null);
-        result = mockMvc.perform(post("/trainer/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(trainerCreationRequest)))
-                .andReturn();
+    // --- Common Given steps ---
+    @Given("a trainer with ID {string} exists with first name {string}, last name {string} and specialization {string}")
+    public void aTrainerWithIdExists(String id, String firstName, String lastName, String specialization) {
+        trainerId = id;
+        TrainerGetProfileResponse response = new TrainerGetProfileResponse(firstName, lastName, 1L, true, new HashSet<>());
+        when(trainerService.getTrainerByUsername(id)).thenReturn(response);
     }
 
     @Then("the response status should be {int}")
@@ -115,214 +103,282 @@ public class StepDefinitions {
         Assertions.assertEquals(status, result.getResponse().getStatus());
     }
 
-    @And("the username should be {string}")
-    public void usernameShouldBe(String username) throws Exception {
+    @And("the response message should contain {string}")
+    public void responseMessageShouldContain(String message) throws Exception {
         String responseContent = result.getResponse().getContentAsString();
-        if (responseContent == null || responseContent.isEmpty()) {
-            Assertions.fail("UserCreationResponse is null or empty");
-        } else {
-            UserCreationResponse response = objectMapper.readValue(responseContent, UserCreationResponse.class);
-            Assertions.assertEquals(username, response.getUsername());
-        }
+        System.out.println(responseContent);
+        Assertions.assertTrue(responseContent.contains(message), "Response should contain message: " + message);
     }
 
-    // --- Activate/Deactivate Trainer ---
-    @Given("a trainer with ID {string} exists with first name {string}, last name {string}")
-    public void trainerWithIdExists(String id, String firstName, String lastName) {
+    // --- Activate Deactivate Trainer ---
+    @Given("a trainer with ID {string} exists in the system")
+    public void aTraineeWithIdExistsInSystem(String id) {
         trainerId = id;
-        TrainerGetProfileResponse response = new TrainerGetProfileResponse(
-                firstName,
-                lastName,
-                1L,
-                true,
-                new HashSet<>()
-        );
-        Mockito.when(trainerService.getTrainerByUsername(id)).thenReturn(response);
     }
 
-    @When("a authenticated user tries to activate the trainer with ID {string}")
-    public void authenticatedUserActivatesTrainer(String id) throws Exception {
+    @When("a trainer with ID {string} tries to activate their account")
+    public void traineeActivatesAccount(String id) throws Exception {
+        trainerId = id;
         isAuthenticated = true;
         isAuthorized = true;
         doNothing().when(userService).activateDeactivateUser(id, true);
         result = mockMvc.perform(patch("/trainer/profile/" + id + "/activate-deactivate")
-                .param("isActive", "true"))
+                        .param("isActive", "true"))
                 .andReturn();
+        TrainerGetProfileResponse response = new TrainerGetProfileResponse("John", "Doe", 1L, true, new HashSet<>());
+        when(trainerService.getTrainerByUsername(id)).thenReturn(response);
     }
 
-    @When("a authenticated user tries to deactivate the trainer with ID {string}")
-    public void authenticatedUserDeactivatesTrainer(String id) throws Exception {
+    @When("a trainer with ID {string} tries to deactivate their account")
+    public void traineeDeactivatesAccount(String id) throws Exception {
+        trainerId = id;
         isAuthenticated = true;
         isAuthorized = true;
         doNothing().when(userService).activateDeactivateUser(id, false);
         result = mockMvc.perform(patch("/trainer/profile/" + id + "/activate-deactivate")
-                .param("isActive", "false"))
+                        .param("isActive", "false"))
                 .andReturn();
+        TrainerGetProfileResponse response = new TrainerGetProfileResponse("John", "Doe", 1L, false, new HashSet<>());
+        when(trainerService.getTrainerByUsername(id)).thenReturn(response);
     }
 
-    @When("a user without proper authorization tries to activate deactivate the trainer with ID {string}")
-    public void unauthorizedUserActivatesDeactivatesTrainer(String id) throws Exception {
-        isAuthorized = false;
-        doThrow(new ForbidenException("Forbidden")).when(userService).activateDeactivateUser(id, true);
+    @When("a trainer with ID {string} tries to activate their account but the trainer has not login before")
+    public void traineeActivatesAccountButTheTraineeHasNotLoginBefore(String id) throws Exception {
+        trainerId = id;
+        isAuthenticated = false;
+        isAuthorized = true;
+        doThrow(new ForbidenException("Unauthorized access")).when(userService).activateDeactivateUser(id, true);
         result = mockMvc.perform(patch("/trainer/profile/" + id + "/activate-deactivate")
-                .param("isActive", "true"))
+                        .param("isActive", "true"))
                 .andReturn();
+        TrainerGetProfileResponse response = new TrainerGetProfileResponse("John", "Doe", 1L, false, new HashSet<>());
+        when(trainerService.getTrainerByUsername(id)).thenReturn(response);
     }
 
-    @Then("the activation response status should be {int}")
-    public void activationResponseStatusShouldBe(int status) {
-        Assertions.assertEquals(status, result.getResponse().getStatus());
-    }
-
-    @Then("the deactivation response status should be {int}")
-    public void deactivationResponseStatusShouldBe(int status) {
-        Assertions.assertEquals(status, result.getResponse().getStatus());
-    }
-
-    @And("the trainer should be active")
-    public void trainerShouldBeActive() {
-        Assertions.assertTrue(true);
-    }
-
-    @And("the trainer should be inactive")
-    public void trainerShouldBeInactive() {
-        Assertions.assertTrue(true);
-    }
-
-    // --- Get Trainer ---
-    @When("a authenticated user tries to retrieve the trainer information for ID {string}")
-    public void authenticatedUserRetrievesTrainer(String id) throws Exception {
-        isAuthenticated = true;
+    @When("a trainer with ID {string} tries to deactivate their account but the trainer has not login before")
+    public void traineeDeactivatesAccountButTheTraineeHasNotLoginBefore(String id) throws Exception {
+        trainerId = id;
+        isAuthenticated = false;
         isAuthorized = true;
-        TrainerGetProfileResponse response = new TrainerGetProfileResponse(
-                "John",
-                "Doe",
-                1L,
-                true,
-                new HashSet<>()
+        doThrow(new ForbidenException("Unauthorized access")).when(userService).activateDeactivateUser(id, false);
+        result = mockMvc.perform(patch("/trainer/profile/" + id + "/activate-deactivate")
+                        .param("isActive", "false"))
+                .andReturn();
+        TrainerGetProfileResponse response = new TrainerGetProfileResponse("John", "Doe", 1L, true, new HashSet<>());
+        when(trainerService.getTrainerByUsername(id)).thenReturn(response);
+    }
+
+    @And("the trainer with ID {string} should be active")
+    public void traineeShouldBeActive(String id) throws Exception {
+        result = mockMvc.perform(get("/trainer/profile/" + id))
+                .andReturn();
+
+        Assertions.assertEquals(200, result.getResponse().getStatus());
+
+        EntityModel<TrainerGetProfileResponse> entityModel = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                new TypeReference<EntityModel<TrainerGetProfileResponse>>() {}
         );
-        Mockito.when(trainerService.getTrainerByUsername(id)).thenReturn(response);
-        result = mockMvc.perform(get("/trainer/profile/" + id))
-                .andReturn();
+
+        TrainerGetProfileResponse response = entityModel.getContent();
+        Assertions.assertNotNull(response, "Response content should not be null");
+        Assertions.assertTrue(response.isActive(), "Trainee should be active");
     }
 
-    @When("a authenticated user tries to retrieve the trainer information for ID {string} but trainee does not exist")
-    public void authenticatedUserRetrievesTrainerNotFound(String id) throws Exception {
+    @And("the trainer with ID {string} should be inactive")
+    public void traineeShouldBeInactive(String id) throws  Exception {
+        result = mockMvc.perform(get("/trainer/profile/" + id))
+                .andReturn();
+        Assertions.assertEquals(200, result.getResponse().getStatus());
+        EntityModel<TrainerGetProfileResponse> entityModel = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                new TypeReference<EntityModel<TrainerGetProfileResponse>>() {}
+        );
+
+        TrainerGetProfileResponse response = entityModel.getContent();
+        Assertions.assertNotNull(response, "Response content should not be null");
+        Assertions.assertFalse(response.isActive(), "Trainee should be active");
+    }
+
+    // --- Get Trainer Profile ---
+    @When("the trainer with ID {string} retrieve the trainer information for ID {string}")
+    public void retrieveTrainerInformation(String id, String targetId) throws Exception {
         isAuthenticated = true;
         isAuthorized = true;
-        Mockito.when(trainerService.getTrainerByUsername(id)).thenThrow(new UserNotFoundException("Trainer not found"));
-        result = mockMvc.perform(get("/trainer/profile/" + id))
+        if (!trainerId.equals(targetId)) {
+            doThrow(new ProfileNotFoundException("Trainer not found")).when(trainerService).getTrainerByUsername(any());
+        }
+        result = mockMvc.perform(get("/trainer/profile/" + targetId))
                 .andReturn();
     }
 
-    @When("a user without proper authorization tries to retrieve the trainer information for ID {string}")
-    public void unauthorizedUserRetrievesTrainer(String id) throws Exception {
-        isAuthorized = false;
-        Mockito.when(trainerService.getTrainerByUsername(id)).thenThrow(new ForbidenException("Forbidden"));
-        result = mockMvc.perform(get("/trainer/profile/" + id))
+    @When("the trainer with ID {string} retrieve the trainer information for ID {string} but the trainer has not logged in before")
+    public void retrieveTrainerInformationButNotLoggedIn(String id, String targetId) throws Exception {
+        isAuthenticated = false;
+        isAuthorized = true;
+        doThrow(new ForbidenException("Unauthorized access")).when(trainerService).getTrainerByUsername(targetId);
+        result = mockMvc.perform(get("/trainer/profile/" + trainerId))
                 .andReturn();
+    }
+
+    @And("the response should contain the trainer's first name {string}")
+    public void responseShouldContainFirstName(String firstName) throws Exception {
+        Assertions.assertEquals(200, result.getResponse().getStatus());
+        EntityModel<TrainerGetProfileResponse> entityModel = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                new TypeReference<EntityModel<TrainerGetProfileResponse>>() {}
+        );
+        TrainerGetProfileResponse response = entityModel.getContent();
+        Assertions.assertNotNull(response, "Response content should not be null");
+        Assertions.assertEquals(firstName, response.getFirstName(), "First name should match");
     }
 
     // --- Get Trainer Trainings ---
-    @When("a authenticated user tries to retrieve the trainings for trainer ID {string}")
-    public void authenticatedUserGetsTrainerTrainings(String id) throws Exception {
+    @And("trainings with IDs {string}, {string} exist and are assigned to trainer with ID {string}")
+    public void trainingsExistAndAssignedToTrainer(String trainingId1, String trainingId2, String trainerId) {
+        List<TrainingTrainersResponse> trainings = new ArrayList<>();
+        trainings.add(new TrainingTrainersResponse(trainingId1, new Date(), "Description 1", 20.0, "Jane"));
+        trainings.add(new TrainingTrainersResponse(trainingId2, new Date(), "Description 2", 20.0, "Jane"));
+        when(trainingService.getTrainerTrainings(any(), any(), any(), any(), any())).thenReturn(new PageImpl<>(trainings));
+    }
+
+    @When("the trainer with ID {string} retrieves their trainings")
+    public void retrieveTrainerTrainings(String id) throws Exception {
         isAuthenticated = true;
         isAuthorized = true;
-        PageImpl<TrainingTrainersResponse> page = new PageImpl<>(Collections.singletonList(new TrainingTrainersResponse(
-                "Training 1",
-                new Date(),
-                "Yoga",
-                60.0,
-                "Yoga"
-        )));
-        Mockito.when(trainingService.getTrainerTrainings(any(), any(), any(), any(), any())).thenReturn(page);
-        result = mockMvc.perform(get("/trainer/profile/" + id + "/trainings"))
+        if (!trainerId.equals(id)) {
+            doThrow(new ProfileNotFoundException("Trainer not found")).when(trainingService).getTrainerTrainings(any(), any(), any(), any(), any());
+        }
+        result = mockMvc.perform(get("/trainer/profile/" + id + "/trainings")
+                        .param("page", "0")
+                        .param("size", "10")
+                        .param("sort", "date,desc"))
                 .andReturn();
     }
 
-    @When("a authenticated user tries to retrieve the trainings for a non-existing trainer ID {string}")
-    public void authenticatedUserGetsTrainerTrainingsNotFound(String id) throws Exception {
-        isAuthenticated = true;
+    @When("the trainer with ID {string} retrieves their trainings but the trainer has not logged in before")
+    public void retrieveTrainerTrainingsButNotLoggedIn(String id) throws Exception {
+        isAuthenticated = false;
         isAuthorized = true;
-        Mockito.when(trainingService.getTrainerTrainings(any(), any(), any(), any(), any())).thenThrow(new UserNotFoundException("Trainer not found"));
-        result = mockMvc.perform(get("/trainer/profile/" + id + "/trainings"))
+        doThrow(new ForbidenException("Unauthorized access")).when(trainingService).getTrainerTrainings(any(), any(), any(), any(), any());
+        result = mockMvc.perform(get("/trainer/profile/" + id + "/trainings")
+                        .param("page", "0")
+                        .param("size", "10")
+                        .param("sort", "date,desc"))
                 .andReturn();
     }
 
-    @When("a user without proper authorization tries to retrieve the trainings for trainer ID {string}")
-    public void unauthorizedUserGetsTrainerTrainings(String id) throws Exception {
-        isAuthorized = false;
-        Mockito.when(trainingService.getTrainerTrainings(any(), any(), any(), any(), any())).thenThrow(new ForbidenException("Forbidden"));
-        result = mockMvc.perform(get("/trainer/profile/" + id + "/trainings"))
-                .andReturn();
-    }
-
-    @And("the response should contain a list of trainings for trainer ID {string}")
-    public void responseShouldContainListOfTrainings(String id) {
-        Assertions.assertTrue(true);
-    }
-
-    // --- Update Trainer ---
-    @When("a authenticated user tries to update the trainer information with first name {string}, last name {string}, birthdate {string}, and address {string}")
-    public void authenticatedUserUpdatesTrainer(String firstName, String lastName, String birthdate, String address) throws Exception {
-        isAuthenticated = true;
-        isAuthorized = true;
-        trainerUpdateRequest.setFirstName(firstName);
-        trainerUpdateRequest.setLastName(lastName);
-        trainerUpdateRequest.setIsActive(true);
-        trainerUpdateRequest.setTrainingTypeId(1L);
-        TrainerUpdateResponse response = new TrainerUpdateResponse(
-                "john.doe",
-                firstName,
-                lastName,
-                1L,
-                true,
-                new HashSet<>()
+    @And("the response should contain training IDs {string}, {string}")
+    public void responseShouldContainTrainingIds(String trainingId1, String trainingId2) throws Exception {
+        Assertions.assertEquals(200, result.getResponse().getStatus());
+        PagedModel<EntityModel<TrainingTrainersResponse>> trainings = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                new TypeReference<PagedModel<EntityModel<TrainingTrainersResponse>>>() {}
         );
-        Mockito.when(trainerService.updateTrainerProfile(any(), any())).thenReturn(response);
-        result = mockMvc.perform(put("/trainer/profile/" + trainerId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(trainerUpdateRequest)))
+        Assertions.assertNotNull(trainings, "Trainings list should not be null");
+        Assertions.assertEquals(2, trainings.getContent().size(), "There should be two trainings in the response");
+        Assertions.assertTrue(trainings.getContent().stream().anyMatch(t -> t.getContent().getTrainingName().equals(trainingId1)), "Training ID " + trainingId1 + " should be present");
+        Assertions.assertTrue(trainings.getContent().stream().anyMatch(t -> t.getContent().getTrainingName().equals(trainingId2)), "Training ID " + trainingId2 + " should be present");
+    }
+
+    // --- Register Trainer ---
+    @When("the new trainer registers with first name {string}, last name {string} and specialization {string}")
+    public void registerNewTrainer(String firstName, String lastName, String specialization) throws Exception {
+        isAuthenticated = true;
+        isAuthorized = true;
+        trainerCreationRequest.setFirstName(firstName);
+        trainerCreationRequest.setLastName(lastName);
+        if (specialization.equals("UnknownSpecialization")) {
+            trainerCreationRequest.setTrainingTypeId(1L);
+            doThrow(new TrainingTypeNotFoundException("Specialization not found")).when(trainerService).createTrainer(any());
+        }else {
+            trainerCreationRequest.setTrainingTypeId(1L);
+            UserCreationResponse response = new UserCreationResponse("alice.johnson", "username");
+            when(trainerService.createTrainer(any())).thenReturn(response);
+        }
+        result = mockMvc.perform(post("/trainer/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(trainerCreationRequest)))
                 .andReturn();
     }
 
-    @When("a authenticated user tries to update the trainer information without providing first name, last name, birthdate, or address")
-    public void authenticatedUserUpdatesTrainerMissingFields() throws Exception {
+    @And("the response should contain as username {string}")
+    public void responseShouldContainUsername(String username) throws Exception {
+        EntityModel<UserCreationResponse> entityModel = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                new TypeReference<EntityModel<UserCreationResponse>>() {}
+        );
+        Assertions.assertNotNull(entityModel.getContent(), "Response content should not be null");
+        Assertions.assertEquals(username, entityModel.getContent().getUsername(), "Username should match");
+    }
+
+    // --- Update Trainer Profile ---
+    @When("the trainer with ID {string} updates their profile with first name {string}, last name {string}, and specialization {string}")
+    public void updateTrainerProfile(String id, String firstName, String lastName, String specialization) throws Exception {
         isAuthenticated = true;
         isAuthorized = true;
         trainerUpdateRequest = new TrainerUpdateRequest();
-        trainerUpdateRequest.setFirstName("null");
-        trainerUpdateRequest.setLastName("null");
+        trainerUpdateRequest.setFirstName(firstName);
+        trainerUpdateRequest.setLastName(lastName);
         trainerUpdateRequest.setIsActive(true);
-        trainerUpdateRequest.setTrainingTypeId(1L);
-        Mockito.when(trainerService.updateTrainerProfile(any(), any())).thenThrow(new RuntimeException("Bad Request"));
-        result = mockMvc.perform(put("/trainer/profile/" + trainerId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(trainerUpdateRequest)))
+        if (specialization.equals("NonExistentSpecialization")) {
+            trainerUpdateRequest.setTrainingTypeId(1L);
+            doThrow(new TrainingTypeNotFoundException("Specialization not found")).when(trainerService).updateTrainerProfile(any(), any());
+        } else if (!trainerId.equals(id)) {
+            trainerUpdateRequest.setTrainingTypeId(1L);
+            doThrow(new ProfileNotFoundException("Trainer not found")).when(trainerService).updateTrainerProfile(any(), any());
+        }
+        else {
+            trainerUpdateRequest.setTrainingTypeId(1L);
+            when(trainerService.updateTrainerProfile(any(), any())).thenReturn(new TrainerUpdateResponse(
+                    id, firstName, lastName, 1L, true, new HashSet<>()
+            ));
+        }
+        result = mockMvc.perform(put("/trainer/profile/" + id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(trainerUpdateRequest)))
                 .andReturn();
     }
 
-    @When("a user without proper authorization tries to update the trainer information")
-    public void unauthorizedUserUpdatesTrainer() throws Exception {
-        isAuthorized = false;
-        trainerUpdateRequest.setFirstName("null");
-        trainerUpdateRequest.setLastName("null");
-        trainerUpdateRequest.setIsActive(true);
+    @When("the trainer with ID {string} updates their profile with first name {string}, last name {string}, and specialization {string} but the trainer has not logged in before")
+    public void updateTrainerProfileButNotLoggedIn(String id, String firstName, String lastName, String specialization) throws Exception {
+        isAuthenticated = false;
+        isAuthorized = true;
+        trainerUpdateRequest = new TrainerUpdateRequest();
+        trainerUpdateRequest.setFirstName(firstName);
+        trainerUpdateRequest.setLastName(lastName);
         trainerUpdateRequest.setTrainingTypeId(1L);
-        Mockito.when(trainerService.updateTrainerProfile(any(), any())).thenThrow(new ForbidenException("Forbidden"));
-        result = mockMvc.perform(put("/trainer/profile/" + trainerId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(trainerUpdateRequest)))
+        trainerUpdateRequest.setIsActive(true);
+        doThrow(new ForbidenException("Unauthorized access")).when(trainerService).updateTrainerProfile(any(), any());
+        result = mockMvc.perform(put("/trainer/profile/" + id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(trainerUpdateRequest)))
                 .andReturn();
     }
 
-    @Then("the update response status should be {int}")
-    public void updateResponseStatusShouldBe(int status) {
-        Assertions.assertEquals(status, result.getResponse().getStatus());
+    @And("the update response should contain the trainer's ID {string}")
+    public void responseShouldContainTrainerId(String id) throws Exception {
+        Assertions.assertEquals(200, result.getResponse().getStatus());
+        EntityModel<TrainerUpdateResponse> entityModel = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                new TypeReference<EntityModel<TrainerUpdateResponse>>() {}
+        );
+        TrainerUpdateResponse response = entityModel.getContent();
+        Assertions.assertNotNull(response, "Response content should not be null");
+        Assertions.assertEquals(id, response.getUsername(), "Trainer ID should match");
     }
 
-    @And("the trainer information should be updated to first name {string}, last name {string}")
-    public void trainerInformationShouldBeUpdated(String firstName, String lastName) {
-        Assertions.assertTrue(true);
+    @And("the update response should contain the trainer's first name {string}")
+    public void responseShouldContainFirstNameInUpdate(String firstName) throws Exception {
+        Assertions.assertEquals(200, result.getResponse().getStatus());
+        EntityModel<TrainerUpdateResponse> entityModel = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                new TypeReference<EntityModel<TrainerUpdateResponse>>() {}
+        );
+        TrainerUpdateResponse response = entityModel.getContent();
+        Assertions.assertNotNull(response, "Response content should not be null");
+        Assertions.assertEquals(firstName, response.getFirstName(), "First name should match");
     }
+
+
 }

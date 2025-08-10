@@ -1,4 +1,4 @@
-package gym.crm.backend.messaging.producer;
+package gym.crm.backend.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import gym.crm.backend.domain.request.TrainerWorkloadRequest;

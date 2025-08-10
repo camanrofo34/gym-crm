@@ -1,21 +1,23 @@
 @assignTrainersToTrainee
-Feature: Assing Trainers to Trainee
+Feature: As a trainee, I want to be able to assign trainers to myself so that I can have multiple trainers.
 
   Scenario: Successful assignment of trainers to trainee
-    Given a trainee with ID "john.doe" exists with first name "John", last name "Doe"
+    Given a trainee with ID "john.doe" exists with first name "John", last name "Doe", birthdate 1990-01-01, and address "123 Main St"
     And trainers with IDs "trainer1", "trainer2" exist
-    When a authenticated user tries to assign trainers with IDs "trainer1", "trainer2" to the trainee with ID "john.doe"
-    Then the assignment response status should be 200
-    And the trainee with ID "john.doe" should have trainers with IDs "trainer1", "trainer2" assigned
+    When the trainee with ID "john.doe" assigns trainers with IDs "trainer1", "trainer2" to themselves
+    Then the response status should be 200
+    And the assignment response message should contain trainers with IDs "trainer1", "trainer2"
 
   Scenario: Unsuccessful assignment due to non-existent trainee
-    Given a trainee with ID "john.doe" does not exist
+    Given a trainee with ID "john.doe" exists with first name "John", last name "Doe", birthdate 1990-01-01, and address "123 Main St"
     And trainers with IDs "trainer1", "trainer2" exist
-    When a authenticated user tries to assign trainers with IDs "trainer1", "trainer2" to the trainee with ID "john.doe" but trainee does not exist
-    Then the assignment response status should be 404
+    When the trainee with ID "jane.doe" assigns trainers with IDs "trainer1", "trainer2" to themselves
+    Then the response status should be 404
+    And the assignment response message should contain "Trainee not found"
 
-  Scenario: Unauthorized access to assign trainers to trainee
-    Given a trainee with ID "john.doe" exists with first name "John", last name "Doe"
+  Scenario: Unsuccessful assignment due to unauthorized access
+    Given a trainee with ID "john.doe" exists with first name "John", last name "Doe", birthdate 1990-01-01, and address "123 Main St"
     And trainers with IDs "trainer1", "trainer2" exist
-    When a user without proper authorization tries to assign trainers with IDs "trainer1", "trainer2" to the trainee with ID "john.doe"
-    Then the assignment response status should be 403
+    When the trainee with ID "john.doe" assigns trainers with IDs "trainer1", "trainer2" to themselves but the trainee has not logged in before
+    Then the response status should be 403
+    And the assignment response message should contain "Unauthorized access"

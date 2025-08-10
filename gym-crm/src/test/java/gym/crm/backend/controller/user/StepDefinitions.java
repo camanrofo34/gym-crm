@@ -4,6 +4,8 @@ package gym.crm.backend.controller.user;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import gym.crm.backend.controller.UserController;
 import gym.crm.backend.domain.request.LoginRequest;
+import gym.crm.backend.exception.handler.GlobalExceptionHandler;
+import gym.crm.backend.exception.types.forbidden.ForbidenException;
 import gym.crm.backend.service.JwtService;
 import gym.crm.backend.service.NotAllowedTokenListService;
 import gym.crm.backend.service.UserService;
@@ -24,8 +26,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 @CucumberContextConfiguration
@@ -60,7 +61,7 @@ public class StepDefinitions {
         MockitoAnnotations.openMocks(this);
         userController = new UserController(userService, passwordEncoder, jwtService, notAllowedTokenListService);
         objectMapper = new ObjectMapper();
-        mockMvc = MockMvcBuilders.standaloneSetup(userController).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(userController).setControllerAdvice(new GlobalExceptionHandler()).build();
         loginRequest = new LoginRequest();
         originalUser = new LoginRequest();
     }
@@ -73,18 +74,17 @@ public class StepDefinitions {
 
     @When("the user attempts to login with username {string} and password {string}")
     public void theUserAttemptsToLoginWithUsernameAndPassword(String username, String password) throws Exception {
-        loginRequest = new LoginRequest(); // Asegúrate de que no sea null
+        loginRequest = new LoginRequest();
         loginRequest.setUsername(username);
         loginRequest.setPassword(password);
 
         if (originalUser.getUsername().equals(username) && originalUser.getPassword().equals(password)) {
             System.out.println("Simulating successful login for user: " + username);
-            Mockito.when(userService.login(any(LoginRequest.class))).thenReturn(true);
-            Mockito.when(jwtService.generateToken(username)).thenReturn("mocked-token");
+            when(userService.login(any(LoginRequest.class))).thenReturn(true);
+            when(jwtService.generateToken(username)).thenReturn("mocked-token");
         } else {
-            Mockito.when(userService.login(any(LoginRequest.class))).thenReturn(false);
+            doThrow(new ForbidenException("Unauthorized access")).when(userService).login(any());
         }
-
         result = mockMvc.perform(post("/user/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .characterEncoding("UTF-8")
@@ -92,20 +92,10 @@ public class StepDefinitions {
                 .andReturn();
     }
 
-    @Then("the login response status should be 200")
-    public void theLoginResponseStatusShouldBe200() throws Exception {
-        Assertions.assertEquals(200, result.getResponse().getStatus());
-    }
-
     @Then("a JWT token should be returned")
     public void aJWTTokenShouldBeReturned() throws Exception {
         String responseContent = result.getResponse().getContentAsString();
         Assertions.assertTrue(responseContent.contains("mocked-token"));
-    }
-
-    @Then("the login response status should be 401")
-    public void theLoginShouldFailWithAnErrorMessage() throws Exception {
-        Assertions.assertEquals(401, result.getResponse().getStatus());
     }
 
     @Given("a user with username {string} and password {string} is authenticated")
@@ -118,9 +108,9 @@ public class StepDefinitions {
     public void theUserAttemptsToChangeThePasswordWithOldPasswordAndNewPassword(String oldPassword, String newPassword) throws Exception {
 
         if (originalUser.getPassword().equals(oldPassword)) {
-            doNothing().when(userService).changePassword(originalUser, newPassword);
+            doNothing().when(userService).changePassword(any(), any());
         } else {
-            doThrow(new RuntimeException("Password mismatch")).when(userService).changePassword(originalUser, newPassword);
+            doThrow(new ForbidenException("Old password is incorrect")).when(userService).changePassword(any(), any());
         }
 
         result = mockMvc.perform(MockMvcRequestBuilders.put("/user/change-password")
@@ -157,6 +147,54 @@ public class StepDefinitions {
     public void theTokenShouldBeAddedToTheBlacklist() {
         String token = result.getResponse().getHeader("Authorization");
         Assertions.assertNull(token);
+    }
+
+    @When("the user attempts to login with username {string} and password {string} six times")
+    public void theUserAttemptsToLoginWithUsernameAndPasswordSixTimes(String username, String password) throws Exception {
+        for (int i = 0; i < 6; i++) {
+            loginRequest.setUsername(username);
+            loginRequest.setPassword(password);
+
+            if (originalUser.getUsername().equals(username) && originalUser.getPassword().equals(password)) {
+                when(userService.login(any(LoginRequest.class))).thenReturn(true);
+                when(jwtService.generateToken(username)).thenReturn("mocked-token");
+            } else {
+                when(userService.login(any(LoginRequest.class))).thenReturn(false);
+            }
+
+            result = mockMvc.perform(post("/user/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .characterEncoding("UTF-8")
+                            .content(objectMapper.writeValueAsString(loginRequest)))
+                    .andReturn();
+        }
+    }
+
+    @Then("the login response status should be {int}")
+    public void theLoginResponseStatusShouldBe(int status) {
+        Assertions.assertEquals(status, result.getResponse().getStatus());
+    }
+
+    @Then("the response should contain {string}")
+    public void theResponseShouldContain(String message) throws Exception {
+        String responseContent = result.getResponse().getContentAsString();
+        Assertions.assertTrue(responseContent.contains(message), "Response should contain: " + message);
+    }
+
+
+    @When("the user attempts to change the password with old password {string} and new password {string} but the user has not logged in before")
+    public void theUserAttemptsToChangeThePasswordWithOldPasswordAndNewPasswordButTheUserHasNotLoggedInBefore(String oldPassword, String newPassword) throws Exception {
+        originalUser.setUsername("nonexistentUser");
+        originalUser.setPassword(oldPassword);
+
+        doThrow(new ForbidenException("Unauthorized access")).when(userService).changePassword(any(), any());
+
+        result = mockMvc.perform(MockMvcRequestBuilders.put("/user/change-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .characterEncoding("UTF-8")
+                        .content(objectMapper.writeValueAsString(originalUser))
+                        .param("newPassword", newPassword))
+                .andReturn();
     }
 }
 
