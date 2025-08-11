@@ -22,6 +22,6 @@ public class TrainerUpdateRequest {
     @JsonFormat(shape = JsonFormat.Shape.NUMBER)
     private Long trainingTypeId;
 
-    @NotBlank(message = "Is Active cannot be blank")
+    @NotNull(message = "Is Active cannot be blank")
     private Boolean isActive;
 }

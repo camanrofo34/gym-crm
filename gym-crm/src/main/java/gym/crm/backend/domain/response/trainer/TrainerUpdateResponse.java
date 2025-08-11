@@ -4,12 +4,16 @@ import gym.crm.backend.domain.entities.Trainee;
 import gym.crm.backend.domain.entities.Trainer;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.util.HashSet;
 import java.util.Set;
 
 @AllArgsConstructor
 @Getter
+@NoArgsConstructor
+@Setter
 public class TrainerUpdateResponse {
     private String username;
     private String firstName;

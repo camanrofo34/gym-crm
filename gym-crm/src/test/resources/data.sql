@@ -1,0 +1,1 @@
+INSERT INTO training_type (id, training_type_name) VALUES (1, 'YOGA');
