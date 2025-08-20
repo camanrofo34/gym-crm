@@ -230,6 +230,7 @@
 	</dependencyManagement>
 
 	<build>
+        <finalName>gym-crm</finalName>
 		<plugins>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
