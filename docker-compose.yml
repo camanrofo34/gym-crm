@@ -1,0 +1,111 @@
+networks:
+  gym-network:
+    driver: bridge
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: gym-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: gymcrm
+      MYSQL_USER: gymuser
+      MYSQL_PASSWORD: gympass
+    ports:
+      - "3307:3306"
+    volumes:
+      - gym-mysql-data:/var/lib/mysql
+    networks:
+      - gym-network
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpassword" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongo:
+    image: mongo:6.0
+    container_name: gym-mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+      MONGO_INITDB_DATABASE: workloaddb
+    ports:
+      - "27017:27017"
+    volumes:
+      - gym-mongo-data:/data/db
+    networks:
+      - gym-network
+    healthcheck:
+      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  activemq:
+    image: symptoma/activemq:5.16.4
+    container_name: gym-activemq
+    environment:
+      ACTIVEMQ_USER: admin
+      ACTIVEMQ_PASSWORD: admin
+    ports:
+      - "61616:61616"
+      - "8161:8161"
+    networks:
+      - gym-network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8161" ]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  gym-crm:
+    build:
+      context: ./gym-crm
+      dockerfile: Dockerfile
+    container_name: gym-crm-service
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      DB_USER: gymuser
+      DB_PASSWORD: gympass
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/gymcrm?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: gymuser
+      SPRING_DATASOURCE_PASSWORD: gympass
+      SPRING_ACTIVEMQ_BROKER_URL: tcp://activemq:61616
+      SPRING_ACTIVEMQ_USER: admin
+      SPRING_ACTIVEMQ_PASSWORD: admin
+    ports:
+      - "8081:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      activemq:
+        condition: service_healthy
+    networks:
+      - gym-network
+
+  hours-microservice:
+    build:
+      context: ./hours-microservice
+      dockerfile: Dockerfile
+    container_name: hours-microservice
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DATA_MONGODB_URI: mongodb://root:example@mongo:27017/workloaddb?authSource=admin
+      SPRING_DATA_MONGODB_DATABASE: workloaddb
+      SPRING_ACTIVEMQ_BROKER_URL: tcp://activemq:61616
+      SPRING_ACTIVEMQ_USER: admin
+      SPRING_ACTIVEMQ_PASSWORD: admin
+    ports:
+      - "8082:8080"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      activemq:
+        condition: service_healthy
+    networks:
+      - gym-network
+
+volumes:
+  gym-mysql-data:
+  gym-mongo-data:
