@@ -17,6 +17,11 @@ services:
       - gym-mysql-data:/var/lib/mysql
     networks:
       - gym-network
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpassword" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   mongo:
     image: mongo:6.0
@@ -31,6 +36,11 @@ services:
       - gym-mongo-data:/data/db
     networks:
       - gym-network
+    healthcheck:
+      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   activemq:
     image: symptoma/activemq:5.16.4
@@ -43,6 +53,11 @@ services:
       - "8161:8161"
     networks:
       - gym-network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8161" ]
+      interval: 15s
+      timeout: 10s
+      retries: 5
 
   gym-crm:
     build:
@@ -62,8 +77,10 @@ services:
     ports:
       - "8081:8080"
     depends_on:
-      - mysql
-      - activemq
+      mysql:
+        condition: service_healthy
+      activemq:
+        condition: service_healthy
     networks:
       - gym-network
 
@@ -82,8 +99,10 @@ services:
     ports:
       - "8082:8080"
     depends_on:
-      - mongo
-      - activemq
+      mongo:
+        condition: service_healthy
+      activemq:
+        condition: service_healthy
     networks:
       - gym-network
 
