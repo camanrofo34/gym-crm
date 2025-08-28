@@ -48,9 +48,15 @@
   <li><strong>Build Tool:</strong> Maven </li>
   <li><strong>Testing:</strong> JUnit, Mockito</li>
   <li><strong>Version Control:</strong> Git</li>
+  <li><strong>Async Communication:</strong> ActiveMQ</li>
+  <li><strong>Data Persistence:</strong>MongoDB/MySQL/H2Database</li>
+  <li><strong>Logging:</strong> SLF4J with Logback</li>
+  <li><strong>Documentation:</strong> Swagger/OpenAPI</li>
+  <li><strong>Behavioral Development Driven: </strong> Cucumber Framework</li>
 </ul>
 
 <h2>🚀 How to Run</h2>
+<h3> On Your Local Machine</h3>
 <ol>
   <li>Clone the repository:
     <pre><code>git clone https://github.com/camanrofo34/gym-crm.git</code></pre>
@@ -61,15 +67,10 @@
   <li>Run the application:
     <pre><code>java -jar target/gym-crm.jar</code></pre>
   </li>
+    <li>Run using Docker:
+        <pre><code>docker-compose up --build</code></pre>
+    </li>
 </ol>
-
-<h2>📝 Future Improvements</h2>
-<ul>
-  <li>Implementation of a front-end interface (web or mobile).</li>
-  <li>Advanced reporting for trainer and trainee activity analytics.</li>
-  <li>Notification system for scheduled trainings.</li>
-  <li>Role-based permissions for enhanced security.</li>
-</ul>
 
 <h2>📌 Notes</h2>
 <p>
